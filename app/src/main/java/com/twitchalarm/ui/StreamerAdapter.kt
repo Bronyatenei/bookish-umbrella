@@ -50,7 +50,9 @@ class StreamerAdapter(
                 b.tvStreamTitle.visibility = View.GONE
             }
 
-            // Переключатель уведомлений
+            // Сначала отключаем прежний listener: иначе isChecked при переиспользовании
+            // ViewHolder может ошибочно записать значение для другого стримера.
+            b.switchNotify.setOnCheckedChangeListener(null)
             b.switchNotify.isChecked = streamer.notifyEnabled
             b.switchNotify.setOnCheckedChangeListener { _, checked ->
                 onToggle(streamer, checked)

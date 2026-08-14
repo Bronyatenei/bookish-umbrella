@@ -98,7 +98,7 @@ object TwitchApi {
      * Проверяет несколько стримеров за один запрос (batch).
      * Более эффективно, чем вызывать checkStream() в цикле.
      */
-    fun checkStreams(logins: List<String>): List<StreamInfo> = runCatching {
+    fun checkStreams(logins: List<String>): List<StreamInfo>? = runCatching {
         if (logins.isEmpty()) return emptyList()
 
         // Формируем batch-запрос через aliases
@@ -131,9 +131,10 @@ object TwitchApi {
             .build()
 
         val response = client.newCall(request).execute()
-        val responseBody = response.body?.string() ?: return emptyList()
+        if (!response.isSuccessful) return null
+        val responseBody = response.body?.string() ?: return null
 
-        val data = JSONObject(responseBody).optJSONObject("data") ?: return emptyList()
+        val data = JSONObject(responseBody).optJSONObject("data") ?: return null
 
         logins.mapIndexed { i, login ->
             val user = data.optJSONObject("u$i")
@@ -156,5 +157,5 @@ object TwitchApi {
                 }
             }
         }
-    }.getOrElse { emptyList() }
+    }.getOrNull()
 }

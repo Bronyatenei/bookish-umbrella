@@ -12,6 +12,9 @@ interface StreamerDao {
     @Query("SELECT * FROM streamers")
     suspend fun getAll(): List<Streamer>
 
+    @Query("SELECT * FROM streamers WHERE notifyEnabled = 1")
+    suspend fun getEnabled(): List<Streamer>
+
     @Query("SELECT * FROM streamers WHERE login = :login LIMIT 1")
     suspend fun getByLogin(login: String): Streamer?
 
