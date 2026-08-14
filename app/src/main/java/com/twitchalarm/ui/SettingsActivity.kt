@@ -1,7 +1,6 @@
 ﻿package com.twitchalarm.ui
 
 import android.media.AudioAttributes
-import android.media.AudioManager
 import android.media.MediaPlayer
 import android.media.RingtoneManager
 import android.os.Bundle
@@ -13,12 +12,11 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
 import com.twitchalarm.R
 import com.twitchalarm.databinding.ActivitySettingsBinding
-import com.twitchalarm.work.BootReceiver
+import com.twitchalarm.work.MonitoringController
 
 class SettingsActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivitySettingsBinding
-    private lateinit var audioManager: AudioManager
 
     companion object {
         const val KEY_CHECK_INTERVAL = "check_interval_minutes"
@@ -31,8 +29,6 @@ class SettingsActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivitySettingsBinding.inflate(layoutInflater)
         setContentView(binding.root)
-
-        audioManager = getSystemService(AudioManager::class.java)
 
         setupToolbar()
         loadSettings()
@@ -71,7 +67,8 @@ class SettingsActivity : AppCompatActivity() {
                     val prefs = PreferenceManager.getDefaultSharedPreferences(this@SettingsActivity)
                     prefs.edit().putInt(KEY_CHECK_INTERVAL, minutes).apply()
                     binding.tvStatus.text = "Проверка каждые $minutes минут"
-                    restartWorkManager()
+                    // Активная служба увидит изменение настройки и пересчитает
+                    // момент следующей проверки без запуска второго цикла.
                 }
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
@@ -85,7 +82,6 @@ class SettingsActivity : AppCompatActivity() {
                 if (fromUser) {
                     val prefs = PreferenceManager.getDefaultSharedPreferences(this@SettingsActivity)
                     prefs.edit().putInt(KEY_ALARM_VOLUME, progress).apply()
-                    applyVolume(progress)
                 }
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
@@ -99,15 +95,9 @@ class SettingsActivity : AppCompatActivity() {
 
         // Кнопка "Проверить сейчас"
         binding.btnCheckNow.setOnClickListener {
-            BootReceiver.scheduleWork(this)
+            MonitoringController.checkNow(this)
             Toast.makeText(this, "🔄 Проверка запущена", Toast.LENGTH_SHORT).show()
         }
-    }
-
-    private fun applyVolume(percent: Int) {
-        val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
-        val volume = (maxVolume * percent / 100)
-        audioManager.setStreamVolume(AudioManager.STREAM_ALARM, volume, 0)
     }
 
     private fun testAlarmSound() {
@@ -117,8 +107,6 @@ class SettingsActivity : AppCompatActivity() {
         // Показываем Toast только при тесте
         Toast.makeText(this, "🔊 Тест звука ($percent%)", Toast.LENGTH_SHORT).show()
 
-        applyVolume(percent)
-
         val audioAttrs = AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_ALARM)
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
@@ -126,9 +114,13 @@ class SettingsActivity : AppCompatActivity() {
 
         try {
             val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+                ?: throw IllegalStateException("На устройстве не настроен звук будильника")
+            val volume = percent.coerceIn(0, 100) / 100f
             val player = MediaPlayer().apply {
                 setAudioAttributes(audioAttrs)
                 setDataSource(this@SettingsActivity, uri)
+                setVolume(volume, volume)
                 setOnPreparedListener { start() }
                 prepareAsync()
             }
@@ -139,10 +131,6 @@ class SettingsActivity : AppCompatActivity() {
         } catch (e: Exception) {
             Toast.makeText(this, "❌ Ошибка: ${e.message}", Toast.LENGTH_SHORT).show()
         }
-    }
-
-    private fun restartWorkManager() {
-        BootReceiver.scheduleWork(this)
     }
 
     override fun onSupportNavigateUp(): Boolean {
