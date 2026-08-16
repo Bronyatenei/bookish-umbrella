@@ -1,13 +1,8 @@
 ﻿package com.twitchalarm.ui
 
 import android.content.Intent
-import android.media.AudioAttributes
-import android.media.MediaPlayer
-import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.provider.OpenableColumns
 import android.widget.SeekBar
 import android.widget.Toast
@@ -17,7 +12,6 @@ import androidx.preference.PreferenceManager
 import com.twitchalarm.R
 import com.twitchalarm.databinding.ActivitySettingsBinding
 import com.twitchalarm.work.AlarmSoundPreferences
-import com.twitchalarm.work.EconomyCheckReceiver
 import com.twitchalarm.work.MonitoringController
 import com.twitchalarm.work.MonitoringStrategy
 
@@ -96,7 +90,6 @@ class SettingsActivity : AppCompatActivity() {
             if (strategy == MonitoringStrategy.RELIABLE) R.id.rbReliable else R.id.rbEconomy
         )
         updatePlaylistSummary()
-        updateMonitoringStatus(interval, strategy)
     }
 
     private fun setupListeners() {
@@ -110,7 +103,6 @@ class SettingsActivity : AppCompatActivity() {
                         .putInt(KEY_CHECK_INTERVAL, minutes)
                         .apply()
                     val strategy = selectedStrategy()
-                    updateMonitoringStatus(minutes, strategy)
                     if (strategy == MonitoringStrategy.ECONOMY) {
                         MonitoringController.reconfigure(this@SettingsActivity)
                     }
@@ -129,7 +121,6 @@ class SettingsActivity : AppCompatActivity() {
                 .edit()
                 .putString(KEY_MONITORING_STRATEGY, strategy.storedValue)
                 .apply()
-            updateMonitoringStatus(currentInterval(), strategy)
             MonitoringController.reconfigure(this)
         }
 
@@ -163,11 +154,6 @@ class SettingsActivity : AppCompatActivity() {
 
         binding.btnChooseTracks.setOnClickListener { playlistPicker.launch(arrayOf("audio/*")) }
         binding.btnClearTracks.setOnClickListener { clearPlaylist() }
-        binding.btnTestSound.setOnClickListener { testAlarmSound() }
-        binding.btnCheckNow.setOnClickListener {
-            MonitoringController.checkNow(this)
-            Toast.makeText(this, "Проверка запущена", Toast.LENGTH_SHORT).show()
-        }
     }
 
     private fun selectedStrategy(): MonitoringStrategy = MonitoringStrategy.fromStoredValue(
@@ -181,15 +167,6 @@ class SettingsActivity : AppCompatActivity() {
         .getInt(KEY_CHECK_INTERVAL, DEFAULT_INTERVAL)
         .coerceIn(1, 15)
 
-    private fun updateMonitoringStatus(interval: Int, strategy: MonitoringStrategy) {
-        binding.tvStatus.text = when (strategy) {
-            MonitoringStrategy.RELIABLE -> "Стабильный режим: проверка каждые $interval мин"
-            MonitoringStrategy.ECONOMY -> {
-                val effective = EconomyCheckReceiver.readEffectiveIntervalMinutes(this)
-                "Экономичный режим: следующая проверка через $effective мин"
-            }
-        }
-    }
 
     private fun persistReadPermission(uri: Uri): Boolean = try {
         contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -233,40 +210,6 @@ class SettingsActivity : AppCompatActivity() {
         else -> "$seconds сек"
     }
 
-    private fun testAlarmSound() {
-        val percent = PreferenceManager.getDefaultSharedPreferences(this)
-            .getInt(KEY_ALARM_VOLUME, DEFAULT_VOLUME)
-            .coerceIn(0, 100)
-        val uri = AlarmSoundPreferences.randomPlaylistUri(this)
-            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-            ?: run {
-                Toast.makeText(this, "На устройстве не настроен звук будильника", Toast.LENGTH_SHORT).show()
-                return
-            }
-        Toast.makeText(this, "Тест выбранной мелодии ($percent%)", Toast.LENGTH_SHORT).show()
-
-        val audioAttrs = AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_ALARM)
-            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-            .build()
-
-        try {
-            val player = MediaPlayer().apply {
-                setAudioAttributes(audioAttrs)
-                setDataSource(this@SettingsActivity, uri)
-                setVolume(percent / 100f, percent / 100f)
-                setOnPreparedListener { start() }
-                prepareAsync()
-            }
-            Handler(Looper.getMainLooper()).postDelayed({
-                runCatching { player.stop() }
-                player.release()
-            }, 2_000)
-        } catch (error: Exception) {
-            Toast.makeText(this, "Не удалось открыть трек: ${error.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
 
     override fun onSupportNavigateUp(): Boolean {
         onBackPressed()

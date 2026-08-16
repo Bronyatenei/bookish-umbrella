@@ -256,11 +256,13 @@
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnClearTracks"
-                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                             android:layout_width="wrap_content"
                             android:layout_height="48dp"
                             android:layout_marginStart="8dp"
                             android:text="Очистить"
+                            android:textColor="@color/twitch_purple_light"
+                            app:strokeColor="@color/twitch_purple_light"
                             app:cornerRadius="12dp"/>
                     </LinearLayout>
 
@@ -308,70 +310,10 @@
                             android:thumbTint="@color/twitch_purple"/>
                     </LinearLayout>
 
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnTestSound"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:layout_marginTop="16dp"
-                        android:text="Тест выбранной мелодии"
-                        app:backgroundTint="@color/twitch_purple"
-                        app:cornerRadius="12dp"/>
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                app:cardBackgroundColor="@color/surface"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="0dp"
-                app:strokeColor="@color/divider"
-                app:strokeWidth="1dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="🔄 Ручная проверка"
-                        android:textSize="16sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/text_primary"
-                        android:layout_marginBottom="4dp"/>
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Запустить проверку прямо сейчас"
-                        android:textSize="13sp"
-                        android:textColor="@color/text_hint"
-                        android:layout_marginBottom="12dp"/>
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnCheckNow"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:text="🔄 Проверить сейчас"
-                        app:backgroundTint="@color/twitch_purple"
-                        app:cornerRadius="12dp"/>
-
-                    <TextView
-                        android:id="@+id/tvStatus"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Проверка каждые 5 минут"
-                        android:textSize="13sp"
-                        android:textColor="@color/text_hint"
-                        android:layout_marginTop="8dp"/>
-
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
 
         </LinearLayout>
     </ScrollView>

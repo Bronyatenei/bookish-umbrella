@@ -64,10 +64,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean = when (item.itemId) {
-        R.id.action_check_now -> {
-            requestCheckNow()
-            true
-        }
         R.id.action_settings -> {
             startActivity(Intent(this, SettingsActivity::class.java))
             true
@@ -105,28 +101,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun requestCheckNow() {
-        lifecycleScope.launch {
-            val enabledCount = withContext(Dispatchers.IO) {
-                database.streamerDao().getEnabled().size
-            }
-            when {
-                enabledCount == 0 -> Toast.makeText(
-                    this@MainActivity,
-                    "Нет включённых каналов для проверки",
-                    Toast.LENGTH_SHORT
-                ).show()
-                else -> {
-                    MonitoringController.checkNow(this@MainActivity)
-                    Toast.makeText(
-                        this@MainActivity,
-                        "Проверка запущена",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-            }
-        }
-    }
 
     private fun setupAddButton() {
         binding.btnAdd.setOnClickListener {

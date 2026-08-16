@@ -7,7 +7,9 @@
         <item name="colorSurface">@color/surface</item>
         <item name="android:windowBackground">@color/background</item>
         <item name="android:statusBarColor">@color/surface</item>
-        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:navigationBarColor">@color/background</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
     </style>
 
     <!-- Dark theme for alarm screen -->
@@ -15,6 +17,8 @@
         <item name="android:windowBackground">@color/alarm_background</item>
         <item name="android:statusBarColor">@color/alarm_background</item>
         <item name="android:navigationBarColor">@color/alarm_background</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
         <item name="colorPrimary">@color/twitch_purple</item>
         <item name="colorOnPrimary">@color/white</item>
         <item name="android:windowShowWallpaper">false</item>
