@@ -114,6 +114,72 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
+                        android:text="⚖️ Режим мониторинга"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text_primary"
+                        android:layout_marginBottom="8dp"/>
+
+                    <RadioGroup
+                        android:id="@+id/rgMonitoringStrategy"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <RadioButton
+                            android:id="@+id/rbReliable"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Стабильность — постоянное уведомление"
+                            android:textColor="@color/text_primary"
+                            android:checked="true"/>
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="32dp"
+                            android:layout_marginBottom="8dp"
+                            android:text="Проверки выполняются в foreground-службе. Лучший вариант для своевременной тревоги."
+                            android:textSize="12sp"
+                            android:textColor="@color/text_hint"/>
+
+                        <RadioButton
+                            android:id="@+id/rbEconomy"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Экономия — отдельные пробуждения"
+                            android:textColor="@color/text_primary"/>
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="32dp"
+                            android:text="Приложение завершается между проверками. Используется выбранный интервал, но Android может отложить фактическое пробуждение."
+                            android:textSize="12sp"
+                            android:textColor="@color/text_hint"/>
+                    </RadioGroup>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                app:cardBackgroundColor="@color/surface"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/divider"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
                         android:text="🔊 Громкость будильника"
                         android:textSize="16sp"
                         android:textStyle="bold"

@@ -60,6 +60,11 @@
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
 
+        <!-- Economy-mode receiver: invoked by a single rescheduled AlarmManager alarm. -->
+        <receiver
+            android:name=".work.EconomyCheckReceiver"
+            android:exported="false" />
+
         <!-- Boot receiver -->
         <receiver
             android:name=".work.BootReceiver"
