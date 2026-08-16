@@ -221,12 +221,99 @@
 
                     </LinearLayout>
 
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="20dp"
+                        android:text="🎵 Плейлист будильника"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text_primary"/>
+
+                    <TextView
+                        android:id="@+id/tvPlaylistSummary"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:text="Не выбран: будет использован системный звук будильника"
+                        android:textSize="13sp"
+                        android:textColor="@color/text_hint"/>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:orientation="horizontal">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnChooseTracks"
+                            android:layout_width="0dp"
+                            android:layout_height="48dp"
+                            android:layout_weight="1"
+                            android:text="Выбрать треки"
+                            app:backgroundTint="@color/twitch_purple"
+                            app:cornerRadius="12dp"/>
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnClearTracks"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="48dp"
+                            android:layout_marginStart="8dp"
+                            android:text="Очистить"
+                            app:cornerRadius="12dp"/>
+                    </LinearLayout>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="20dp"
+                        android:text="🌅 Плавное нарастание громкости"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text_primary"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="За сколько времени звук достигнет выбранной громкости"
+                        android:textSize="13sp"
+                        android:textColor="@color/text_hint"/>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:id="@+id/tvFadeValue"
+                            android:layout_width="60dp"
+                            android:layout_height="wrap_content"
+                            android:text="30 сек"
+                            android:textSize="18sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/twitch_purple"/>
+
+                        <SeekBar
+                            android:id="@+id/seekBarFade"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:max="120"
+                            android:progress="30"
+                            android:progressTint="@color/twitch_purple"
+                            android:thumbTint="@color/twitch_purple"/>
+                    </LinearLayout>
+
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnTestSound"
                         android:layout_width="match_parent"
                         android:layout_height="48dp"
-                        android:layout_marginTop="12dp"
-                        android:text="🔊 Тест звука"
+                        android:layout_marginTop="16dp"
+                        android:text="Тест выбранной мелодии"
                         app:backgroundTint="@color/twitch_purple"
                         app:cornerRadius="12dp"/>
 

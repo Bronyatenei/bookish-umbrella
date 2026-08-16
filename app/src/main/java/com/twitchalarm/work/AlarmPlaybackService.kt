@@ -14,7 +14,10 @@ import android.media.MediaPlayer
 import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
+import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -77,6 +80,8 @@ class AlarmPlaybackService : Service() {
     private var vibrator: Vibrator? = null
     private var audioManager: AudioManager? = null
     private var audioFocusRequest: AudioFocusRequest? = null
+    private val volumeHandler = Handler(Looper.getMainLooper())
+    private var volumeRamp: Runnable? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
@@ -171,8 +176,11 @@ class AlarmPlaybackService : Service() {
                 setAudioAttributes(audioAttributes)
                 setDataSource(this@AlarmPlaybackService, uri)
                 isLooping = true
-                setVolume(readAlarmVolume(), readAlarmVolume())
-                setOnPreparedListener { it.start() }
+                setVolume(0f, 0f)
+                setOnPreparedListener { player ->
+                    player.start()
+                    startVolumeRamp(player, readAlarmVolume(), readFadeDurationMillis())
+                }
                 setOnErrorListener { _, what, extra ->
                     Log.e(TAG, "MediaPlayer error: what=$what extra=$extra")
                     true
@@ -184,13 +192,14 @@ class AlarmPlaybackService : Service() {
         }
     }
 
-    private fun findAlarmUri(): Uri? = listOf(
-        RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM),
-        RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE),
-        RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
-        Settings.System.DEFAULT_ALARM_ALERT_URI,
-        Settings.System.DEFAULT_RINGTONE_URI
-    ).firstOrNull { it != null }
+    private fun findAlarmUri(): Uri? = AlarmSoundPreferences.randomPlaylistUri(this)
+        ?: listOf(
+            RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM),
+            RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE),
+            RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
+            Settings.System.DEFAULT_ALARM_ALERT_URI,
+            Settings.System.DEFAULT_RINGTONE_URI
+        ).firstOrNull { it != null }
 
     /**
      * Slider controls this application's signal amplitude only. We deliberately
@@ -201,6 +210,47 @@ class AlarmPlaybackService : Service() {
             .getInt(SettingsActivity.KEY_ALARM_VOLUME, SettingsActivity.DEFAULT_VOLUME)
             .coerceIn(0, 100)
         return percent / 100f
+    }
+
+    private fun readFadeDurationMillis(): Long = PreferenceManager
+        .getDefaultSharedPreferences(this)
+        .getInt(
+            SettingsActivity.KEY_ALARM_FADE_SECONDS,
+            SettingsActivity.DEFAULT_FADE_SECONDS
+        )
+        .coerceIn(0, 120)
+        .times(1_000L)
+
+    /** Starts just above silence, then raises volume to the configured target. */
+    private fun startVolumeRamp(player: MediaPlayer, target: Float, durationMillis: Long) {
+        cancelVolumeRamp()
+        if (target <= 0f || durationMillis <= 0L) {
+            player.setVolume(target, target)
+            return
+        }
+
+        val initial = minOf(target, 0.02f)
+        val startedAt = SystemClock.elapsedRealtime()
+        player.setVolume(initial, initial)
+        val runnable = object : Runnable {
+            override fun run() {
+                if (mediaPlayer !== player) return
+                val progress = ((SystemClock.elapsedRealtime() - startedAt).toFloat() / durationMillis)
+                    .coerceIn(0f, 1f)
+                val volume = initial + (target - initial) * progress
+                player.setVolume(volume, volume)
+                if (progress < 1f) {
+                    volumeHandler.postDelayed(this, 100L)
+                }
+            }
+        }
+        volumeRamp = runnable
+        volumeHandler.post(runnable)
+    }
+
+    private fun cancelVolumeRamp() {
+        volumeRamp?.let { volumeHandler.removeCallbacks(it) }
+        volumeRamp = null
     }
 
     private fun requestAudioFocus(audioAttributes: AudioAttributes) {
@@ -235,6 +285,7 @@ class AlarmPlaybackService : Service() {
     }
 
     private fun stopPlaybackOnly() {
+        cancelVolumeRamp()
         try {
             mediaPlayer?.run {
                 if (isPlaying) stop()
