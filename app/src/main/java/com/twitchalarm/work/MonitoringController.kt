@@ -29,6 +29,10 @@ object MonitoringController {
                 appContext.stopService(Intent(appContext, StreamCheckService::class.java))
                 EconomyCheckReceiver.schedule(appContext, immediately = true)
             }
+            MonitoringStrategy.HOME_AGENT -> {
+                appContext.stopService(Intent(appContext, StreamCheckService::class.java))
+                EconomyCheckReceiver.cancel(appContext)
+            }
         }
     }
 
@@ -38,6 +42,7 @@ object MonitoringController {
             MonitoringStrategy.RELIABLE ->
                 startReliableService(appContext, StreamCheckService.ACTION_CHECK_NOW)
             MonitoringStrategy.ECONOMY -> EconomyCheckReceiver.requestCheckNow(appContext)
+            MonitoringStrategy.HOME_AGENT -> Unit
         }
     }
 

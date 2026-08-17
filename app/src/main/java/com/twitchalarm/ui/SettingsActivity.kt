@@ -1,5 +1,8 @@
 ﻿package com.twitchalarm.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -9,10 +12,12 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
+import com.google.firebase.messaging.FirebaseMessaging
 import com.twitchalarm.R
 import com.twitchalarm.databinding.ActivitySettingsBinding
 import com.twitchalarm.work.AlarmSoundPreferences
 import com.twitchalarm.work.MonitoringController
+import com.twitchalarm.work.FcmTokenStore
 import com.twitchalarm.work.MonitoringStrategy
 
 class SettingsActivity : AppCompatActivity() {
@@ -62,6 +67,7 @@ class SettingsActivity : AppCompatActivity() {
         setupToolbar()
         loadSettings()
         setupListeners()
+        refreshFcmToken()
     }
 
     private fun setupToolbar() {
@@ -87,7 +93,11 @@ class SettingsActivity : AppCompatActivity() {
         binding.seekBarFade.progress = fadeSeconds
         binding.tvFadeValue.text = formatFadeSeconds(fadeSeconds)
         binding.rgMonitoringStrategy.check(
-            if (strategy == MonitoringStrategy.RELIABLE) R.id.rbReliable else R.id.rbEconomy
+            when (strategy) {
+                MonitoringStrategy.RELIABLE -> R.id.rbReliable
+                MonitoringStrategy.ECONOMY -> R.id.rbEconomy
+                MonitoringStrategy.HOME_AGENT -> R.id.rbHomeAgent
+            }
         )
         updatePlaylistSummary()
     }
@@ -115,6 +125,7 @@ class SettingsActivity : AppCompatActivity() {
         binding.rgMonitoringStrategy.setOnCheckedChangeListener { _, checkedId ->
             val strategy = when (checkedId) {
                 R.id.rbEconomy -> MonitoringStrategy.ECONOMY
+                R.id.rbHomeAgent -> MonitoringStrategy.HOME_AGENT
                 else -> MonitoringStrategy.RELIABLE
             }
             PreferenceManager.getDefaultSharedPreferences(this)
@@ -154,6 +165,36 @@ class SettingsActivity : AppCompatActivity() {
 
         binding.btnChooseTracks.setOnClickListener { playlistPicker.launch(arrayOf("audio/*")) }
         binding.btnClearTracks.setOnClickListener { clearPlaylist() }
+        binding.btnCopyFcmToken.setOnClickListener { copyFcmToken() }
+    }
+
+    private fun refreshFcmToken() {
+        val cached = FcmTokenStore.get(this)
+        if (cached != null) updateFcmTokenSummary(cached)
+        FirebaseMessaging.getInstance().token
+            .addOnSuccessListener { token ->
+                FcmTokenStore.save(this, token)
+                updateFcmTokenSummary(token)
+            }
+            .addOnFailureListener {
+                if (cached == null) binding.tvFcmTokenSummary.text = "FCM-токен пока недоступен"
+            }
+    }
+
+    private fun updateFcmTokenSummary(token: String) {
+        binding.tvFcmTokenSummary.text = "FCM-токен готов: ${token.take(8)}…${token.takeLast(6)}"
+    }
+
+    private fun copyFcmToken() {
+        val token = FcmTokenStore.get(this)
+        if (token == null) {
+            Toast.makeText(this, "FCM-токен ещё не получен", Toast.LENGTH_SHORT).show()
+            refreshFcmToken()
+            return
+        }
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(ClipData.newPlainText("FCM token", token))
+        Toast.makeText(this, "FCM-токен скопирован", Toast.LENGTH_SHORT).show()
     }
 
     private fun selectedStrategy(): MonitoringStrategy = MonitoringStrategy.fromStoredValue(

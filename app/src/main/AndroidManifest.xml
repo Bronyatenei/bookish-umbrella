@@ -60,6 +60,15 @@
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
 
+        <!-- Home Agent FCM receiver. Data-only messages are handled in code. -->
+        <service
+            android:name=".work.HomeAgentMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
         <!-- Economy-mode receiver: invoked by a single rescheduled AlarmManager alarm. -->
         <receiver
             android:name=".work.EconomyCheckReceiver"

@@ -157,6 +157,39 @@
                             android:text="Приложение завершается между проверками. Используется выбранный интервал, но Android может отложить фактическое пробуждение."
                             android:textSize="12sp"
                             android:textColor="@color/text_hint"/>
+
+                        <RadioButton
+                            android:id="@+id/rbHomeAgent"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Домашний агент — проверки на ПК"
+                            android:textColor="@color/text_primary"/>
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="32dp"
+                            android:text="Windows-компьютер проверяет Twitch и отправляет тревогу на телефон через FCM. Экономит заряд, но ПК должен быть включён и агент настроен."
+                            android:textSize="12sp"
+                            android:textColor="@color/text_hint"/>
+
+                        <TextView
+                            android:id="@+id/tvFcmTokenSummary"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="FCM-токен: получение…"
+                            android:textSize="12sp"
+                            android:textColor="@color/text_hint"
+                            android:maxLines="2"
+                            android:ellipsize="middle"/>
+
+                        <Button
+                            android:id="@+id/btnCopyFcmToken"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Скопировать FCM-токен"
+                            android:textAllCaps="false"/>
                     </RadioGroup>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
