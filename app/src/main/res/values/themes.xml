@@ -4,6 +4,7 @@
         <item name="colorPrimary">@color/twitch_purple</item>
         <item name="colorPrimaryVariant">@color/twitch_purple_dark</item>
         <item name="colorOnPrimary">@color/white</item>
+        <item name="colorControlNormal">@color/text_primary</item>
         <item name="colorSurface">@color/surface</item>
         <item name="android:windowBackground">@color/background</item>
         <item name="android:statusBarColor">@color/surface</item>

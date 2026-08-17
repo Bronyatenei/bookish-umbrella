@@ -34,17 +34,14 @@ class SettingsActivity : AppCompatActivity() {
             return@registerForActivityResult
         }
         val previousUris = AlarmSoundPreferences.playlist(this)
-        previousUris.filterNot { it in readableUris }.forEach { uri ->
-            runCatching {
-                contentResolver.releasePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-        }
+        val mergedUris = (previousUris + readableUris).distinct()
         PreferenceManager.getDefaultSharedPreferences(this)
             .edit()
-            .putStringSet(KEY_ALARM_PLAYLIST, readableUris.map(Uri::toString).toSet())
+            .putStringSet(KEY_ALARM_PLAYLIST, mergedUris.map(Uri::toString).toSet())
             .apply()
         updatePlaylistSummary()
-        Toast.makeText(this, "Плейлист обновлён: ${readableUris.size}", Toast.LENGTH_SHORT).show()
+        val addedCount = mergedUris.size - previousUris.size
+        Toast.makeText(this, "Добавлено: $addedCount, всего: ${mergedUris.size}", Toast.LENGTH_SHORT).show()
     }
 
     companion object {

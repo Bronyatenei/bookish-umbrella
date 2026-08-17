@@ -35,6 +35,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var adapter: StreamerAdapter
     private lateinit var database: AppDatabase
+    private var synchronizingBulkToggle = false
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -52,6 +53,7 @@ class MainActivity : AppCompatActivity() {
         setupRecyclerView()
         setupAddButton()
         setupSwipeToDelete()
+        setupBulkToggle()
         observeStreamers()
         requestNotificationPermission()
         requestFullScreenPermissionIfNeeded()
@@ -73,7 +75,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupToolbar() {
         setSupportActionBar(binding.toolbar)
-        binding.toolbar.title = ""
+        supportActionBar?.title = getString(R.string.app_name)
         supportActionBar?.setDisplayHomeAsUpEnabled(false)
     }
 
@@ -101,6 +103,20 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+
+    private fun setupBulkToggle() {
+        binding.switchAllNotify.setOnCheckedChangeListener { _, enabled ->
+            if (synchronizingBulkToggle) return@setOnCheckedChangeListener
+            lifecycleScope.launch(Dispatchers.IO) {
+                database.streamerDao().setAllNotifyEnabled(enabled)
+                if (enabled) {
+                    MonitoringController.start(this@MainActivity)
+                } else {
+                    MonitoringController.stop(this@MainActivity)
+                }
+            }
+        }
+    }
 
     private fun setupAddButton() {
         binding.btnAdd.setOnClickListener {
@@ -215,8 +231,16 @@ class MainActivity : AppCompatActivity() {
             database.streamerDao().getAllFlow().collect { streamers ->
                 adapter.submitList(streamers)
                 binding.tvEmpty.visibility = if (streamers.isEmpty()) View.VISIBLE else View.GONE
+                synchronizeBulkToggle(streamers)
             }
         }
+    }
+
+    private fun synchronizeBulkToggle(streamers: List<Streamer>) {
+        synchronizingBulkToggle = true
+        binding.switchAllNotify.visibility = if (streamers.isEmpty()) View.GONE else View.VISIBLE
+        binding.switchAllNotify.isChecked = streamers.isNotEmpty() && streamers.all { it.notifyEnabled }
+        synchronizingBulkToggle = false
     }
 
     private fun refreshMonitoringState() {
