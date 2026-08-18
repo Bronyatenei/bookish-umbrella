@@ -94,6 +94,49 @@
             app:backgroundTint="@color/twitch_purple"
             app:cornerRadius="16dp"/>
 
+        <LinearLayout
+            android:id="@+id/snoozeOptions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSnooze5"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="6dp"
+                android:text="+5 мин"
+                android:textSize="13sp"
+                app:backgroundTint="@color/input_background"
+                app:cornerRadius="14dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSnooze10"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:layout_marginHorizontal="3dp"
+                android:text="+10 мин"
+                android:textSize="13sp"
+                app:backgroundTint="@color/input_background"
+                app:cornerRadius="14dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSnooze15"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:layout_marginStart="6dp"
+                android:text="+15 мин"
+                android:textSize="13sp"
+                app:backgroundTint="@color/input_background"
+                app:cornerRadius="14dp" />
+        </LinearLayout>
+
         <!-- Dismiss button -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnDismiss"

@@ -1,0 +1,17 @@
+# Android/Gradle local files
+.gradle/
+local.properties
+build/
+**/build/
+
+# Firebase private credentials and local Home Agent state
+home-agent/node_modules/
+home-agent/service-account.json
+home-agent/config.json
+home-agent/state.json
+
+# IDE and OS files
+.idea/workspace.xml
+.idea/caches/
+*.iml
+.DS_Store

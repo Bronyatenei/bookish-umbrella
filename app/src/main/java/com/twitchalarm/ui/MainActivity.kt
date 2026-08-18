@@ -35,6 +35,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var adapter: StreamerAdapter
     private lateinit var database: AppDatabase
+    private var synchronizingBulkToggle = false
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -52,6 +53,7 @@ class MainActivity : AppCompatActivity() {
         setupRecyclerView()
         setupAddButton()
         setupSwipeToDelete()
+        setupBulkToggle()
         observeStreamers()
         requestNotificationPermission()
         requestFullScreenPermissionIfNeeded()
@@ -64,8 +66,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean = when (item.itemId) {
-        R.id.action_check_now -> {
-            requestCheckNow()
+        R.id.action_scheduled_alarms -> {
+            startActivity(Intent(this, ScheduledAlarmsActivity::class.java))
             true
         }
         R.id.action_settings -> {
@@ -77,7 +79,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupToolbar() {
         setSupportActionBar(binding.toolbar)
-        binding.toolbar.title = ""
+        supportActionBar?.title = getString(R.string.app_name)
         supportActionBar?.setDisplayHomeAsUpEnabled(false)
     }
 
@@ -105,24 +107,16 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun requestCheckNow() {
-        lifecycleScope.launch {
-            val enabledCount = withContext(Dispatchers.IO) {
-                database.streamerDao().getEnabled().size
-            }
-            when {
-                enabledCount == 0 -> Toast.makeText(
-                    this@MainActivity,
-                    "Нет включённых каналов для проверки",
-                    Toast.LENGTH_SHORT
-                ).show()
-                else -> {
-                    MonitoringController.checkNow(this@MainActivity)
-                    Toast.makeText(
-                        this@MainActivity,
-                        "Проверка запущена",
-                        Toast.LENGTH_SHORT
-                    ).show()
+
+    private fun setupBulkToggle() {
+        binding.switchAllNotify.setOnCheckedChangeListener { _, enabled ->
+            if (synchronizingBulkToggle) return@setOnCheckedChangeListener
+            lifecycleScope.launch(Dispatchers.IO) {
+                database.streamerDao().setAllNotifyEnabled(enabled)
+                if (enabled) {
+                    MonitoringController.start(this@MainActivity)
+                } else {
+                    MonitoringController.stop(this@MainActivity)
                 }
             }
         }
@@ -241,8 +235,16 @@ class MainActivity : AppCompatActivity() {
             database.streamerDao().getAllFlow().collect { streamers ->
                 adapter.submitList(streamers)
                 binding.tvEmpty.visibility = if (streamers.isEmpty()) View.VISIBLE else View.GONE
+                synchronizeBulkToggle(streamers)
             }
         }
+    }
+
+    private fun synchronizeBulkToggle(streamers: List<Streamer>) {
+        synchronizingBulkToggle = true
+        binding.switchAllNotify.visibility = if (streamers.isEmpty()) View.GONE else View.VISIBLE
+        binding.switchAllNotify.isChecked = streamers.isNotEmpty() && streamers.all { it.notifyEnabled }
+        synchronizingBulkToggle = false
     }
 
     private fun refreshMonitoringState() {

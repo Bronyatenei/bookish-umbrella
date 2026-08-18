@@ -1,15 +1,17 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
-    
+
     <item
-        android:id="@+id/action_check_now"
-        android:title="🔄 Проверить сейчас"
+        android:id="@+id/action_scheduled_alarms"
+        android:icon="@drawable/ic_alarm_clock"
+        android:title="Обычные будильники"
         app:showAsAction="always" />
-        
+
     <item
         android:id="@+id/action_settings"
-        android:title="⚙️ Настройки"
-        app:showAsAction="never" />
-        
+        android:icon="@drawable/ic_settings"
+        android:title="Настройки"
+        app:showAsAction="always" />
+
 </menu>

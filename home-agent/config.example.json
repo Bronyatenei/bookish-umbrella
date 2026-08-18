@@ -1,0 +1,8 @@
+{
+  "firebaseServiceAccountPath": "./service-account.json",
+  "fcmToken": "PASTE_DEVICE_FCM_TOKEN_HERE",
+  "pollIntervalSeconds": 60,
+  "channels": [
+    "example_channel"
+  ]
+}

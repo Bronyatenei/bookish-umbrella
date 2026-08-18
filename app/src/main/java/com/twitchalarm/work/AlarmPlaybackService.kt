@@ -14,7 +14,10 @@ import android.media.MediaPlayer
 import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
+import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -39,6 +42,9 @@ class AlarmPlaybackService : Service() {
         const val EXTRA_TITLE = "extra_title"
         const val EXTRA_GAME = "extra_game"
         const val EXTRA_VIEWERS = "extra_viewers"
+        const val EXTRA_SCHEDULED_ALARM_ID = "extra_scheduled_alarm_id"
+        const val EXTRA_SCHEDULED_ALARM_HOUR = "extra_scheduled_alarm_hour"
+        const val EXTRA_SCHEDULED_ALARM_MINUTE = "extra_scheduled_alarm_minute"
 
         private const val TAG = "AlarmPlaybackService"
         private const val NOTIFICATION_ID = 2001
@@ -57,10 +63,42 @@ class AlarmPlaybackService : Service() {
                 putExtra(EXTRA_GAME, game)
                 putExtra(EXTRA_VIEWERS, viewers)
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (error: IllegalStateException) {
+                Log.e(TAG, "Android rejected background alarm service start", error)
+            }
+        }
+
+        fun startScheduledAlarm(
+            context: Context,
+            alarmId: Long,
+            hour: Int,
+            minute: Int,
+            label: String
+        ) {
+            val intent = Intent(context, AlarmPlaybackService::class.java).apply {
+                action = ACTION_START
+                putExtra(EXTRA_STREAMER, "Будильник")
+                putExtra(EXTRA_TITLE, label)
+                putExtra(EXTRA_GAME, String.format("%02d:%02d", hour, minute))
+                putExtra(EXTRA_VIEWERS, 0)
+                putExtra(EXTRA_SCHEDULED_ALARM_ID, alarmId)
+                putExtra(EXTRA_SCHEDULED_ALARM_HOUR, hour)
+                putExtra(EXTRA_SCHEDULED_ALARM_MINUTE, minute)
+            }
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (error: IllegalStateException) {
+                Log.e(TAG, "Android rejected background scheduled alarm start", error)
             }
         }
 
@@ -73,6 +111,8 @@ class AlarmPlaybackService : Service() {
     private var vibrator: Vibrator? = null
     private var audioManager: AudioManager? = null
     private var audioFocusRequest: AudioFocusRequest? = null
+    private val volumeHandler = Handler(Looper.getMainLooper())
+    private var volumeRamp: Runnable? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
@@ -84,8 +124,19 @@ class AlarmPlaybackService : Service() {
         val title = intent?.getStringExtra(EXTRA_TITLE).orEmpty()
         val game = intent?.getStringExtra(EXTRA_GAME).orEmpty()
         val viewers = intent?.getIntExtra(EXTRA_VIEWERS, 0) ?: 0
+        val scheduledAlarmId = intent?.getLongExtra(EXTRA_SCHEDULED_ALARM_ID, -1L) ?: -1L
+        val scheduledAlarmHour = intent?.getIntExtra(EXTRA_SCHEDULED_ALARM_HOUR, -1) ?: -1
+        val scheduledAlarmMinute = intent?.getIntExtra(EXTRA_SCHEDULED_ALARM_MINUTE, -1) ?: -1
 
-        startAsForeground(streamer, title, game, viewers)
+        startAsForeground(
+            streamer,
+            title,
+            game,
+            viewers,
+            scheduledAlarmId,
+            scheduledAlarmHour,
+            scheduledAlarmMinute
+        )
         restartAlarmSound()
         startVibration()
         return START_NOT_STICKY
@@ -93,17 +144,30 @@ class AlarmPlaybackService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    private fun startAsForeground(streamer: String, title: String, game: String, viewers: Int) {
+    private fun startAsForeground(
+        streamer: String,
+        title: String,
+        game: String,
+        viewers: Int,
+        scheduledAlarmId: Long,
+        scheduledAlarmHour: Int,
+        scheduledAlarmMinute: Int
+    ) {
         val alarmIntent = Intent(this, AlarmActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra(AlarmActivity.EXTRA_STREAMER, streamer)
             putExtra(AlarmActivity.EXTRA_TITLE, title)
             putExtra(AlarmActivity.EXTRA_GAME, game)
             putExtra(AlarmActivity.EXTRA_VIEWERS, viewers)
+            if (scheduledAlarmId >= 0L) {
+                putExtra(AlarmActivity.EXTRA_SCHEDULED_ALARM_ID, scheduledAlarmId)
+                putExtra(AlarmActivity.EXTRA_SCHEDULED_ALARM_HOUR, scheduledAlarmHour)
+                putExtra(AlarmActivity.EXTRA_SCHEDULED_ALARM_MINUTE, scheduledAlarmMinute)
+            }
         }
         val fullScreenIntent = PendingIntent.getActivity(
             this,
-            streamer.hashCode(),
+            if (scheduledAlarmId >= 0L) scheduledAlarmId.toInt() else streamer.hashCode(),
             alarmIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -113,13 +177,18 @@ class AlarmPlaybackService : Service() {
             Intent(this, AlarmPlaybackService::class.java).setAction(ACTION_STOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val description = buildString {
-            append(title.ifBlank { "$streamer начал стрим" })
-            if (game.isNotBlank()) append(" · $game")
+        val isScheduledAlarm = scheduledAlarmId >= 0L
+        val description = if (isScheduledAlarm) {
+            title.ifBlank { "Пора вставать" }
+        } else {
+            buildString {
+                append(title.ifBlank { "$streamer начал стрим" })
+                if (game.isNotBlank()) append(" · $game")
+            }
         }
         val builder = NotificationCompat.Builder(this, App.CHANNEL_ALARM)
             .setSmallIcon(R.drawable.ic_twitch)
-            .setContentTitle("$streamer в эфире")
+            .setContentTitle(if (isScheduledAlarm) "Будильник $game" else "$streamer в эфире")
             .setContentText(description)
             .setContentIntent(fullScreenIntent)
             .setFullScreenIntent(fullScreenIntent, canUseFullScreenIntent())
@@ -167,8 +236,11 @@ class AlarmPlaybackService : Service() {
                 setAudioAttributes(audioAttributes)
                 setDataSource(this@AlarmPlaybackService, uri)
                 isLooping = true
-                setVolume(readAlarmVolume(), readAlarmVolume())
-                setOnPreparedListener { it.start() }
+                setVolume(0f, 0f)
+                setOnPreparedListener { player ->
+                    player.start()
+                    startVolumeRamp(player, readAlarmVolume(), readFadeDurationMillis())
+                }
                 setOnErrorListener { _, what, extra ->
                     Log.e(TAG, "MediaPlayer error: what=$what extra=$extra")
                     true
@@ -180,13 +252,14 @@ class AlarmPlaybackService : Service() {
         }
     }
 
-    private fun findAlarmUri(): Uri? = listOf(
-        RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM),
-        RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE),
-        RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
-        Settings.System.DEFAULT_ALARM_ALERT_URI,
-        Settings.System.DEFAULT_RINGTONE_URI
-    ).firstOrNull { it != null }
+    private fun findAlarmUri(): Uri? = AlarmSoundPreferences.randomPlaylistUri(this)
+        ?: listOf(
+            RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM),
+            RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE),
+            RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
+            Settings.System.DEFAULT_ALARM_ALERT_URI,
+            Settings.System.DEFAULT_RINGTONE_URI
+        ).firstOrNull { it != null }
 
     /**
      * Slider controls this application's signal amplitude only. We deliberately
@@ -197,6 +270,47 @@ class AlarmPlaybackService : Service() {
             .getInt(SettingsActivity.KEY_ALARM_VOLUME, SettingsActivity.DEFAULT_VOLUME)
             .coerceIn(0, 100)
         return percent / 100f
+    }
+
+    private fun readFadeDurationMillis(): Long = PreferenceManager
+        .getDefaultSharedPreferences(this)
+        .getInt(
+            SettingsActivity.KEY_ALARM_FADE_SECONDS,
+            SettingsActivity.DEFAULT_FADE_SECONDS
+        )
+        .coerceIn(0, 120)
+        .times(1_000L)
+
+    /** Starts just above silence, then raises volume to the configured target. */
+    private fun startVolumeRamp(player: MediaPlayer, target: Float, durationMillis: Long) {
+        cancelVolumeRamp()
+        if (target <= 0f || durationMillis <= 0L) {
+            player.setVolume(target, target)
+            return
+        }
+
+        val initial = minOf(target, 0.02f)
+        val startedAt = SystemClock.elapsedRealtime()
+        player.setVolume(initial, initial)
+        val runnable = object : Runnable {
+            override fun run() {
+                if (mediaPlayer !== player) return
+                val progress = ((SystemClock.elapsedRealtime() - startedAt).toFloat() / durationMillis)
+                    .coerceIn(0f, 1f)
+                val volume = initial + (target - initial) * progress
+                player.setVolume(volume, volume)
+                if (progress < 1f) {
+                    volumeHandler.postDelayed(this, 100L)
+                }
+            }
+        }
+        volumeRamp = runnable
+        volumeHandler.post(runnable)
+    }
+
+    private fun cancelVolumeRamp() {
+        volumeRamp?.let { volumeHandler.removeCallbacks(it) }
+        volumeRamp = null
     }
 
     private fun requestAudioFocus(audioAttributes: AudioAttributes) {
@@ -231,6 +345,7 @@ class AlarmPlaybackService : Service() {
     }
 
     private fun stopPlaybackOnly() {
+        cancelVolumeRamp()
         try {
             mediaPlayer?.run {
                 if (isPlaying) stop()

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "14115043094",
+    "project_id": "twitch-alarm-a5ae5",
+    "storage_bucket": "twitch-alarm-a5ae5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:14115043094:android:3d3d5be45bb7e30aed4237",
+        "android_client_info": {
+          "package_name": "com.twitchalarm"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyChyEVkCJGU2_oNFK8collpBnhymPp7u3U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

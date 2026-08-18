@@ -18,6 +18,9 @@ interface StreamerDao {
     @Query("SELECT * FROM streamers WHERE login = :login LIMIT 1")
     suspend fun getByLogin(login: String): Streamer?
 
+    @Query("UPDATE streamers SET notifyEnabled = :enabled")
+    suspend fun setAllNotifyEnabled(enabled: Boolean)
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(streamer: Streamer)
 

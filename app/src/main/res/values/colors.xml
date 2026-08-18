@@ -17,19 +17,19 @@
     
     <!-- Text colors -->
     <color name="text_primary">#FFFFFF</color>
-    <color name="text_secondary">#B0B0C0</color>
-    <color name="text_hint">#666680</color>
+    <color name="text_secondary">#D0D0DE</color>
+    <color name="text_hint">#A8A8BD</color>
     
     <!-- UI elements -->
-    <color name="divider">#2A2A3E</color>
-    <color name="input_background">#2A2A3E</color>
+    <color name="divider">#42425C</color>
+    <color name="input_background">#2B2B43</color>
     
     <!-- Switch colors -->
     <color name="switch_thumb">#9146FF</color>
-    <color name="switch_track">#3A3A4E</color>
+    <color name="switch_track">#5B5B76</color>
     
     <!-- Status colors -->
-    <color name="offline_grey">#666666</color>
+    <color name="offline_grey">#B8B8C7</color>
     <color name="live_red">#FF0000</color>
     
     <!-- Other -->

@@ -114,6 +114,105 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
+                        android:text="⚖️ Режим мониторинга"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text_primary"
+                        android:layout_marginBottom="8dp"/>
+
+                    <RadioGroup
+                        android:id="@+id/rgMonitoringStrategy"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <RadioButton
+                            android:id="@+id/rbReliable"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Стабильность — постоянное уведомление"
+                            android:textColor="@color/text_primary"
+                            android:checked="true"/>
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="32dp"
+                            android:layout_marginBottom="8dp"
+                            android:text="Проверки выполняются в foreground-службе. Лучший вариант для своевременной тревоги."
+                            android:textSize="12sp"
+                            android:textColor="@color/text_hint"/>
+
+                        <RadioButton
+                            android:id="@+id/rbEconomy"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Экономия — отдельные пробуждения"
+                            android:textColor="@color/text_primary"/>
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="32dp"
+                            android:text="Приложение завершается между проверками. Используется выбранный интервал, но Android может отложить фактическое пробуждение."
+                            android:textSize="12sp"
+                            android:textColor="@color/text_hint"/>
+
+                        <RadioButton
+                            android:id="@+id/rbHomeAgent"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Домашний агент — проверки на ПК"
+                            android:textColor="@color/text_primary"/>
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="32dp"
+                            android:text="Windows-компьютер проверяет Twitch и отправляет тревогу на телефон через FCM. Экономит заряд, но ПК должен быть включён и агент настроен."
+                            android:textSize="12sp"
+                            android:textColor="@color/text_hint"/>
+
+                        <TextView
+                            android:id="@+id/tvFcmTokenSummary"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="FCM-токен: получение…"
+                            android:textSize="12sp"
+                            android:textColor="@color/text_hint"
+                            android:maxLines="2"
+                            android:ellipsize="middle"/>
+
+                        <Button
+                            android:id="@+id/btnCopyFcmToken"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Скопировать FCM-токен"
+                            android:textAllCaps="false"/>
+                    </RadioGroup>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                app:cardBackgroundColor="@color/surface"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/divider"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
                         android:text="🔊 Громкость будильника"
                         android:textSize="16sp"
                         android:textStyle="bold"
@@ -155,70 +254,99 @@
 
                     </LinearLayout>
 
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnTestSound"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:layout_marginTop="12dp"
-                        android:text="🔊 Тест звука"
-                        app:backgroundTint="@color/twitch_purple"
-                        app:cornerRadius="12dp"/>
-
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                app:cardBackgroundColor="@color/surface"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="0dp"
-                app:strokeColor="@color/divider"
-                app:strokeWidth="1dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="🔄 Ручная проверка"
+                        android:layout_marginTop="20dp"
+                        android:text="🎵 Плейлист будильника"
                         android:textSize="16sp"
                         android:textStyle="bold"
-                        android:textColor="@color/text_primary"
-                        android:layout_marginBottom="4dp"/>
+                        android:textColor="@color/text_primary"/>
 
                     <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Запустить проверку прямо сейчас"
-                        android:textSize="13sp"
-                        android:textColor="@color/text_hint"
-                        android:layout_marginBottom="12dp"/>
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnCheckNow"
+                        android:id="@+id/tvPlaylistSummary"
                         android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:text="🔄 Проверить сейчас"
-                        app:backgroundTint="@color/twitch_purple"
-                        app:cornerRadius="12dp"/>
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:text="Не выбран: будет использован системный звук будильника"
+                        android:textSize="13sp"
+                        android:textColor="@color/text_hint"/>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:orientation="horizontal">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnChooseTracks"
+                            android:layout_width="0dp"
+                            android:layout_height="48dp"
+                            android:layout_weight="1"
+                            android:text="Выбрать треки"
+                            app:backgroundTint="@color/twitch_purple"
+                            app:cornerRadius="12dp"/>
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnClearTracks"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="48dp"
+                            android:layout_marginStart="8dp"
+                            android:text="Очистить"
+                            android:textColor="@color/twitch_purple_light"
+                            app:strokeColor="@color/twitch_purple_light"
+                            app:cornerRadius="12dp"/>
+                    </LinearLayout>
 
                     <TextView
-                        android:id="@+id/tvStatus"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Проверка каждые 5 минут"
+                        android:layout_marginTop="20dp"
+                        android:text="🌅 Плавное нарастание громкости"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text_primary"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="За сколько времени звук достигнет выбранной громкости"
                         android:textSize="13sp"
-                        android:textColor="@color/text_hint"
-                        android:layout_marginTop="8dp"/>
+                        android:textColor="@color/text_hint"/>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:id="@+id/tvFadeValue"
+                            android:layout_width="60dp"
+                            android:layout_height="wrap_content"
+                            android:text="30 сек"
+                            android:textSize="18sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/twitch_purple"/>
+
+                        <SeekBar
+                            android:id="@+id/seekBarFade"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:max="120"
+                            android:progress="30"
+                            android:progressTint="@color/twitch_purple"
+                            android:thumbTint="@color/twitch_purple"/>
+                    </LinearLayout>
+
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
+
 
         </LinearLayout>
     </ScrollView>

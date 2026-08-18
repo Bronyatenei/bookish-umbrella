@@ -14,8 +14,6 @@ import androidx.core.app.NotificationCompat
 import androidx.preference.PreferenceManager
 import com.twitchalarm.App
 import com.twitchalarm.R
-import com.twitchalarm.api.TwitchApi
-import com.twitchalarm.data.AppDatabase
 import com.twitchalarm.ui.MainActivity
 import com.twitchalarm.ui.SettingsActivity
 import kotlinx.coroutines.CoroutineScope
@@ -47,14 +45,12 @@ class StreamCheckService : Service() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val scheduleChanges = Channel<WakeReason>(Channel.CONFLATED)
-    private lateinit var database: AppDatabase
     private lateinit var preferences: android.content.SharedPreferences
     private lateinit var preferenceListener: android.content.SharedPreferences.OnSharedPreferenceChangeListener
     private var monitorJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
-        database = AppDatabase.getInstance(applicationContext)
         preferences = PreferenceManager.getDefaultSharedPreferences(this)
         preferenceListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
             if (key == SettingsActivity.KEY_CHECK_INTERVAL) {
@@ -110,39 +106,12 @@ class StreamCheckService : Service() {
         }
     }
 
-    private suspend fun checkOnce(): CheckState {
-        val streamers = database.streamerDao().getEnabled()
-        if (streamers.isEmpty()) return CheckState.NO_ENABLED_STREAMERS
-
-        val results = TwitchApi.checkStreams(streamers.map { it.login })
-            ?: return CheckState.NETWORK_FAILURE
-
-        results.forEach { info ->
-            val previous = database.streamerDao().getByLogin(info.login) ?: return@forEach
-            // Тумблер мог быть выключен после начала HTTP-запроса.
-            if (!previous.notifyEnabled) return@forEach
-
-            database.streamerDao().updateLiveStatus(
-                login = info.login,
-                isLive = info.isLive,
-                title = info.title,
-                viewers = info.viewerCount,
-                game = info.gameName,
-                displayName = info.displayName
-            )
-
-            if (!previous.isLive && info.isLive) {
-                Log.i(TAG, "${info.displayName} went live")
-                AlarmPlaybackService.start(
-                    context = applicationContext,
-                    displayName = info.displayName,
-                    title = info.title,
-                    game = info.gameName,
-                    viewers = info.viewerCount
-                )
-            }
-        }
-        return CheckState.SUCCESS
+    private suspend fun checkOnce(): CheckState = when (
+        StreamStatusChecker.checkEnabledStreamers(applicationContext)
+    ) {
+        StreamStatusChecker.Result.SUCCESS -> CheckState.SUCCESS
+        StreamStatusChecker.Result.NETWORK_FAILURE -> CheckState.NETWORK_FAILURE
+        StreamStatusChecker.Result.NO_ENABLED_STREAMERS -> CheckState.NO_ENABLED_STREAMERS
     }
 
     private fun readIntervalMillis(): Long {
