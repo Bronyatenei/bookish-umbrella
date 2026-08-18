@@ -66,6 +66,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean = when (item.itemId) {
+        R.id.action_scheduled_alarms -> {
+            startActivity(Intent(this, ScheduledAlarmsActivity::class.java))
+            true
+        }
         R.id.action_settings -> {
             startActivity(Intent(this, SettingsActivity::class.java))
             true
