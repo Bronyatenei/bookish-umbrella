@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
@@ -8,6 +9,7 @@ import { getMessaging } from "firebase-admin/messaging";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const configPath = path.resolve(process.argv[2] ?? path.join(__dirname, "config.json"));
 const statePath = path.join(path.dirname(configPath), "state.json");
+const autoOpenPath = path.join(path.dirname(configPath), "auto-open.json");
 const twitchUrl = "https://gql.twitch.tv/gql";
 const twitchClientId = "kimne78kx3ncx6brgo4mv6wki5h1ko";
 const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
@@ -29,6 +31,31 @@ async function writeState(state) {
   const temporary = `${statePath}.tmp`;
   await fs.writeFile(temporary, `${JSON.stringify(state, null, 2)}\n`, "utf8");
   await fs.rename(temporary, statePath);
+}
+
+/** The optional local switch is read on every polling cycle, so changing it needs no restart. */
+async function isAutoOpenEnabled() {
+  try {
+    return (await readJson(autoOpenPath)).openOnLive === true;
+  } catch {
+    return false;
+  }
+}
+
+/** Opens the system-default browser without waiting for it or affecting FCM delivery. */
+function openStreamInBrowser(stream) {
+  const streamUrl = `https://www.twitch.tv/${encodeURIComponent(stream.login)}`;
+  const command = `start "" "${streamUrl}"`;
+  const launcher = spawn("cmd.exe", ["/d", "/s", "/c", command], {
+    detached: true,
+    stdio: "ignore",
+    windowsHide: true
+  });
+  launcher.on("error", (error) => {
+    console.error(`[${new Date().toISOString()}] browser open failed for ${stream.login}: ${describeError(error)}`);
+  });
+  launcher.unref();
+  console.log(`[${new Date().toISOString()}] browser opened: ${streamUrl}`);
 }
 
 function makeQuery(logins) {
@@ -138,9 +165,11 @@ async function main() {
   while (!stopping) {
     try {
       const results = await checkStreams(config.channels.map((x) => String(x).trim().toLowerCase()).filter(Boolean));
+      const autoOpenEnabled = await isAutoOpenEnabled();
       for (const stream of results) {
         const previous = state[stream.login];
         if (previous && !previous.isLive && stream.isLive) {
+          if (autoOpenEnabled) openStreamInBrowser(stream);
           await sendAlarm(messaging, config.fcmToken, stream);
         }
         state[stream.login] = { isLive: stream.isLive, streamId: stream.streamId, checkedAt: new Date().toISOString() };

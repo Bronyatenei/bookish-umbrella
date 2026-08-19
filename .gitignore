@@ -9,6 +9,7 @@ home-agent/node_modules/
 home-agent/service-account.json
 home-agent/config.json
 home-agent/state.json
+home-agent/auto-open.json
 
 # IDE and OS files
 .idea/workspace.xml
