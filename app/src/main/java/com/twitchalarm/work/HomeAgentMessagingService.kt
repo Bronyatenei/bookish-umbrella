@@ -6,6 +6,7 @@ import com.google.firebase.messaging.RemoteMessage
 import com.twitchalarm.data.AppDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import org.json.JSONObject
 
 /** Receives high-priority stream-start events from the Windows Home Agent. */
 class HomeAgentMessagingService : FirebaseMessagingService() {
@@ -34,12 +35,38 @@ class HomeAgentMessagingService : FirebaseMessagingService() {
                 )
                 val accepted = HomeAgentWatchdog.onHeartbeat(this, heartbeat)
                 Log.d(TAG, "Heartbeat ${if (accepted) "accepted" else "ignored"}: ${heartbeat.id ?: "legacy"}")
+                // A one-off stream event may have been lost during Doze. The Agent relays a
+                // bounded pending alert inside heartbeat until it expires; dedupe handles repeats.
+                handleRelayedStreamAlert(data[KEY_PENDING_STREAM_ALERT])
                 return
             }
-            EVENT_STREAM_ONLINE -> Unit
+            EVENT_STREAM_ONLINE -> handleStreamOnline(data)
             else -> return
         }
+    }
 
+    private suspend fun handleRelayedStreamAlert(rawAlert: String?) {
+        if (rawAlert.isNullOrBlank()) return
+        val alert = runCatching { JSONObject(rawAlert) }.getOrElse {
+            Log.w(TAG, "Ignored malformed relayed stream alert", it)
+            return
+        }
+        handleStreamOnline(
+            mapOf(
+                KEY_TYPE to EVENT_STREAM_ONLINE,
+                KEY_EVENT_ID to alert.optString("eventId"),
+                KEY_SENT_AT to alert.optString("sentAt"),
+                KEY_LOGIN to alert.optString("login"),
+                KEY_DISPLAY_NAME to alert.optString("displayName"),
+                KEY_TITLE to alert.optString("title"),
+                KEY_GAME to alert.optString("game"),
+                KEY_VIEWERS to alert.optString("viewers"),
+                KEY_RELAYED to "true"
+            )
+        )
+    }
+
+    private suspend fun handleStreamOnline(data: Map<String, String>) {
         val login = data[KEY_LOGIN]?.trim()?.lowercase().orEmpty()
         if (login.isEmpty()) return
 
@@ -72,6 +99,7 @@ class HomeAgentMessagingService : FirebaseMessagingService() {
             ?.removePrefix("$login:")
             ?.takeIf { it.isNotBlank() }
         if (StreamAlertDeduplicator.shouldTrigger(this, login, streamId)) {
+            Log.i(TAG, "Starting stream alarm for $login from ${if (data.containsKey(KEY_RELAYED)) "heartbeat relay" else "direct FCM"}")
             AlarmPlaybackService.start(
                 context = this,
                 displayName = displayName,
@@ -103,12 +131,15 @@ class HomeAgentMessagingService : FirebaseMessagingService() {
         private const val KEY_HEARTBEAT_SESSION_ID = "session_id"
         private const val KEY_HEARTBEAT_SEQUENCE = "sequence"
         private const val KEY_HEARTBEAT_SENT_AT = "sent_at"
+        private const val KEY_PENDING_STREAM_ALERT = "pending_stream_alert"
+        private const val KEY_RELAYED = "_relayed"
         private const val KEY_LOGIN = "login"
         private const val KEY_DISPLAY_NAME = "display_name"
         private const val KEY_TITLE = "title"
         private const val KEY_GAME = "game"
         private const val KEY_VIEWERS = "viewers"
         private const val KEY_EVENT_ID = "event_id"
+        private const val KEY_SENT_AT = "sent_at"
         private const val EVENT_STREAM_ONLINE = "stream_online"
         private const val EVENT_HEARTBEAT = "home_agent_heartbeat"
         private val EVENT_LOCK = Any()

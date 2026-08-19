@@ -17,8 +17,10 @@ const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
 const HEARTBEAT_TTL_MS = 20 * 60 * 1000;
 const HEARTBEAT_COLLAPSE_KEY = "twitch_alarm_home_agent_health";
 const HEARTBEAT_PROTOCOL_VERSION = "2";
-const STREAM_EVENT_TTL_MS = 5 * 60 * 1000;
+const STREAM_EVENT_TTL_MS = 20 * 60 * 1000;
 const HEARTBEAT_STATE_KEY = "__homeAgentHeartbeat";
+const PENDING_STREAM_ALERTS_STATE_KEY = "__pendingStreamAlerts";
+const PENDING_STREAM_ALERT_DATA_KEY = "pending_stream_alert";
 
 async function readJson(file) {
   return JSON.parse(await fs.readFile(file, "utf8"));
@@ -107,19 +109,23 @@ function describeError(error) {
   return parts.join("; ");
 }
 
-async function sendHeartbeat(messaging, token, sessionId, sequence) {
+async function sendHeartbeat(messaging, token, sessionId, sequence, pendingStreamAlert) {
   const sentAt = Date.now();
   const heartbeatId = `${sessionId}:${sequence}`;
+  const data = {
+    type: "home_agent_heartbeat",
+    version: HEARTBEAT_PROTOCOL_VERSION,
+    heartbeat_id: heartbeatId,
+    session_id: sessionId,
+    sequence: String(sequence),
+    sent_at: String(sentAt)
+  };
+  if (pendingStreamAlert) {
+    data[PENDING_STREAM_ALERT_DATA_KEY] = JSON.stringify(pendingStreamAlert);
+  }
   await messaging.send({
     token,
-    data: {
-      type: "home_agent_heartbeat",
-      version: HEARTBEAT_PROTOCOL_VERSION,
-      heartbeat_id: heartbeatId,
-      session_id: sessionId,
-      sequence: String(sequence),
-      sent_at: String(sentAt)
-    },
+    data,
     android: {
       priority: "high",
       // Keep only the latest health state if the phone reconnects after a delay.
@@ -127,32 +133,62 @@ async function sendHeartbeat(messaging, token, sessionId, sequence) {
       ttl: HEARTBEAT_TTL_MS
     }
   });
-  console.log(`[${new Date(sentAt).toISOString()}] heartbeat sent; id=${heartbeatId}`);
+  const relaySuffix = pendingStreamAlert ? `; relay=${pendingStreamAlert.eventId}` : "";
+  console.log(`[${new Date(sentAt).toISOString()}] heartbeat sent; id=${heartbeatId}${relaySuffix}`);
   return { sentAt, sequence, heartbeatId };
 }
 
-async function sendAlarm(messaging, token, stream) {
-  const sentAt = Date.now();
-  const eventId = `${stream.login}:${stream.streamId || sentAt}`;
+function makeStreamAlert(stream, detectedAt = Date.now()) {
+  return {
+    type: "stream_online",
+    eventId: `${stream.login}:${stream.streamId || detectedAt}`,
+    sentAt: detectedAt,
+    login: stream.login,
+    displayName: stream.displayName,
+    title: stream.title,
+    game: stream.game,
+    viewers: Number(stream.viewers || 0),
+    lastRelayedAt: 0
+  };
+}
+
+function toFcmData(alert) {
+  return {
+    type: "stream_online",
+    event_id: alert.eventId,
+    sent_at: String(alert.sentAt),
+    login: alert.login,
+    display_name: alert.displayName,
+    title: alert.title,
+    game: alert.game,
+    viewers: String(alert.viewers)
+  };
+}
+
+function activePendingAlerts(state, now) {
+  const raw = state[PENDING_STREAM_ALERTS_STATE_KEY];
+  const alerts = Array.isArray(raw) ? raw : [];
+  return alerts.filter((alert) => alert && now - Number(alert.sentAt || 0) < STREAM_EVENT_TTL_MS);
+}
+
+function selectPendingAlert(alerts) {
+  return [...alerts].sort((left, right) =>
+    Number(left.lastRelayedAt || 0) - Number(right.lastRelayedAt || 0)
+  )[0];
+}
+
+async function sendAlarm(messaging, token, alert) {
   const messageId = await messaging.send({
     token,
-    data: {
-      type: "stream_online",
-      event_id: eventId,
-      sent_at: String(sentAt),
-      login: stream.login,
-      display_name: stream.displayName,
-      title: stream.title,
-      game: stream.game,
-      viewers: String(stream.viewers)
-    },
+    data: toFcmData(alert),
     android: {
       priority: "high",
-      // A stream alarm remains useful after a short connectivity or Doze delay.
-      ttl: STREAM_EVENT_TTL_MS
+      // Keep one-off stream alerts long enough for a short Doze or connectivity delay.
+      ttl: STREAM_EVENT_TTL_MS,
+      fcmOptions: { analyticsLabel: "stream-online" }
     }
   });
-  console.log(`[${new Date(sentAt).toISOString()}] FCM sent: ${stream.login}; id=${messageId}; ttl=5m`);
+  console.log(`[${new Date(alert.sentAt).toISOString()}] FCM sent: ${alert.login}; id=${messageId}; ttl=20m`);
 }
 
 async function main() {
@@ -181,26 +217,37 @@ async function main() {
     try {
       const results = await checkStreams(config.channels.map((x) => String(x).trim().toLowerCase()).filter(Boolean));
       const autoOpenEnabled = await isAutoOpenEnabled();
+      let pendingAlerts = activePendingAlerts(state, Date.now());
       for (const stream of results) {
         const previous = state[stream.login];
         if (previous && !previous.isLive && stream.isLive) {
+          const alert = makeStreamAlert(stream);
+          pendingAlerts = pendingAlerts.filter((item) => item.eventId !== alert.eventId);
+          pendingAlerts.push(alert);
           if (autoOpenEnabled) openStreamInBrowser(stream);
-          await sendAlarm(messaging, config.fcmToken, stream);
+          await sendAlarm(messaging, config.fcmToken, alert);
         }
         state[stream.login] = { isLive: stream.isLive, streamId: stream.streamId, checkedAt: new Date().toISOString() };
       }
+      state[PENDING_STREAM_ALERTS_STATE_KEY] = pendingAlerts;
       await writeState(state);
 
       const lastHeartbeatAt = Number(state[HEARTBEAT_STATE_KEY]?.sentAt || 0);
       let heartbeatLog;
       if (Date.now() - lastHeartbeatAt >= HEARTBEAT_INTERVAL_MS) {
         const nextHeartbeatSequence = Math.max(0, Number(state[HEARTBEAT_STATE_KEY]?.sequence || 0)) + 1;
+        const pendingAlert = selectPendingAlert(pendingAlerts);
         const heartbeat = await sendHeartbeat(
           messaging,
           config.fcmToken,
           heartbeatSessionId,
-          nextHeartbeatSequence
+          nextHeartbeatSequence,
+          pendingAlert
         );
+        if (pendingAlert) {
+          pendingAlert.lastRelayedAt = heartbeat.sentAt;
+        }
+        state[PENDING_STREAM_ALERTS_STATE_KEY] = pendingAlerts;
         state[HEARTBEAT_STATE_KEY] = { sentAt: heartbeat.sentAt, sequence: heartbeat.sequence };
         await writeState(state);
         heartbeatLog = `heartbeat=sent #${heartbeat.sequence}`;
