@@ -14,12 +14,32 @@
         android:background="@color/surface"
         app:elevation="0dp">
 
-        <com.google.android.material.appbar.MaterialToolbar
-            android:id="@+id/toolbar"
+        <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="?attr/actionBarSize"
-            android:paddingHorizontal="16dp"
-            app:titleTextColor="@color/text_primary" />
+            android:layout_height="?attr/actionBarSize">
+
+            <com.google.android.material.appbar.MaterialToolbar
+                android:id="@+id/toolbar"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:paddingHorizontal="16dp"
+                app:titleTextColor="@color/text_primary" />
+
+            <!-- Separate overlay slot keeps the status chip to the right of the title,
+                 immediately before the two toolbar action icons. -->
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipActiveStrategy"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:layout_gravity="end|center_vertical"
+                android:layout_marginEnd="112dp"
+                android:text="Режим"
+                android:textColor="@color/white"
+                android:textSize="11sp"
+                android:visibility="gone"
+                app:chipCornerRadius="16dp"
+                app:ensureMinTouchTargetSize="false" />
+        </FrameLayout>
     </com.google.android.material.appbar.AppBarLayout>
 
     <!-- Main content -->

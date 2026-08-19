@@ -2,7 +2,9 @@ package com.twitchalarm.ui
 
 import android.Manifest
 import android.app.NotificationManager
+import android.content.BroadcastReceiver
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -26,7 +28,9 @@ import com.twitchalarm.data.AppDatabase
 import com.twitchalarm.data.Streamer
 import com.twitchalarm.databinding.ActivityMainBinding
 import com.twitchalarm.work.AlarmPlaybackService
+import com.twitchalarm.work.HomeAgentWatchdog
 import com.twitchalarm.work.MonitoringController
+import com.twitchalarm.work.MonitoringStrategy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -36,6 +40,14 @@ class MainActivity : AppCompatActivity() {
     private lateinit var adapter: StreamerAdapter
     private lateinit var database: AppDatabase
     private var synchronizingBulkToggle = false
+
+    private val strategyStatusReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context?, intent: Intent?) {
+            if (intent?.action == HomeAgentWatchdog.ACTION_STATUS_CHANGED) {
+                refreshActiveStrategyIndicator()
+            }
+        }
+    }
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -58,6 +70,27 @@ class MainActivity : AppCompatActivity() {
         requestNotificationPermission()
         requestFullScreenPermissionIfNeeded()
         refreshMonitoringState()
+        refreshActiveStrategyIndicator()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        ContextCompat.registerReceiver(
+            this,
+            strategyStatusReceiver,
+            IntentFilter(HomeAgentWatchdog.ACTION_STATUS_CHANGED),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+    }
+
+    override fun onStop() {
+        unregisterReceiver(strategyStatusReceiver)
+        super.onStop()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshActiveStrategyIndicator()
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
@@ -236,6 +269,7 @@ class MainActivity : AppCompatActivity() {
                 adapter.submitList(streamers)
                 binding.tvEmpty.visibility = if (streamers.isEmpty()) View.VISIBLE else View.GONE
                 synchronizeBulkToggle(streamers)
+                refreshActiveStrategyIndicator()
             }
         }
     }
@@ -246,6 +280,44 @@ class MainActivity : AppCompatActivity() {
         binding.switchAllNotify.isChecked = streamers.isNotEmpty() && streamers.all { it.notifyEnabled }
         synchronizingBulkToggle = false
     }
+
+    private fun refreshActiveStrategyIndicator() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val hasEnabledStreamers = database.streamerDao().getEnabled().isNotEmpty()
+            val selected = MonitoringController.selectedStrategy(this@MainActivity)
+            val display = when {
+                !hasEnabledStreamers -> StrategyIndicator("Выключено", R.color.strategy_disabled)
+                selected == MonitoringStrategy.HOME_AGENT && HomeAgentWatchdog.isFallbackActive(this@MainActivity) -> {
+                    val fallbackName = when (HomeAgentWatchdog.fallbackStrategy(this@MainActivity)) {
+                        MonitoringStrategy.RELIABLE -> "надёжно"
+                        else -> "экономия"
+                    }
+                    StrategyIndicator("Фоллбэк: $fallbackName", R.color.strategy_fallback)
+                }
+                selected == MonitoringStrategy.HOME_AGENT -> {
+                    val lastHeartbeat = HomeAgentWatchdog.lastHeartbeatAt(this@MainActivity)
+                    when {
+                        lastHeartbeat == 0L -> StrategyIndicator("ПК: ожидание", R.color.strategy_home_agent)
+                        System.currentTimeMillis() - lastHeartbeat >= HomeAgentWatchdog.timeoutMillis(this@MainActivity) ->
+                            StrategyIndicator("ПК: нет связи", R.color.strategy_fallback)
+                        else -> StrategyIndicator("ПК: агент", R.color.strategy_home_agent)
+                    }
+                }
+                selected == MonitoringStrategy.RELIABLE -> StrategyIndicator("Телефон: надёжно", R.color.strategy_reliable)
+                else -> StrategyIndicator("Телефон: экономия", R.color.strategy_economy)
+            }
+            withContext(Dispatchers.Main) {
+                binding.chipActiveStrategy.text = display.label
+                binding.chipActiveStrategy.chipBackgroundColor = ContextCompat.getColorStateList(
+                    this@MainActivity,
+                    display.colorRes
+                )
+                binding.chipActiveStrategy.visibility = View.VISIBLE
+            }
+        }
+    }
+
+    private data class StrategyIndicator(val label: String, val colorRes: Int)
 
     private fun refreshMonitoringState() {
         lifecycleScope.launch(Dispatchers.IO) {

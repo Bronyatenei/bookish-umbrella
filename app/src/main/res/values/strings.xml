@@ -1,4 +1,7 @@
-<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Twitch Будильник</string>
+    <string-array name="home_agent_fallback_options">
+        <item>Надёжный — постоянное уведомление</item>
+        <item>Экономия — отдельные пробуждения</item>
+    </string-array>
 </resources>

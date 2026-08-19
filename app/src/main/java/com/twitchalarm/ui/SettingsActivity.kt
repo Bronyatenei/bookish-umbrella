@@ -1,14 +1,20 @@
 ﻿package com.twitchalarm.ui
 
 import android.content.ClipData
+import android.app.AlarmManager
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.provider.OpenableColumns
+import android.view.View
+import android.widget.AdapterView
 import android.widget.SeekBar
 import android.widget.Toast
+import androidx.core.widget.doAfterTextChanged
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
@@ -19,6 +25,7 @@ import com.twitchalarm.work.AlarmSoundPreferences
 import com.twitchalarm.work.MonitoringController
 import com.twitchalarm.work.FcmTokenStore
 import com.twitchalarm.work.MonitoringStrategy
+import com.twitchalarm.work.HomeAgentWatchdog
 
 class SettingsActivity : AppCompatActivity() {
 
@@ -50,6 +57,10 @@ class SettingsActivity : AppCompatActivity() {
         const val KEY_MONITORING_STRATEGY = "monitoring_strategy"
         const val KEY_ALARM_PLAYLIST = "alarm_playlist_uris"
         const val KEY_ALARM_FADE_SECONDS = "alarm_fade_seconds"
+        const val KEY_HOME_AGENT_WATCHDOG_INTERVAL = "home_agent_watchdog_interval_minutes"
+        const val KEY_HOME_AGENT_MISSED_HEARTBEATS = "home_agent_missed_heartbeats"
+        const val KEY_HOME_AGENT_FALLBACK_STRATEGY = "home_agent_fallback_strategy"
+        const val KEY_HOME_AGENT_AUTO_RETURN = "home_agent_auto_return"
         const val DEFAULT_INTERVAL = 5
         const val DEFAULT_VOLUME = 100
         const val DEFAULT_FADE_SECONDS = 30
@@ -65,6 +76,11 @@ class SettingsActivity : AppCompatActivity() {
         loadSettings()
         setupListeners()
         refreshFcmToken()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        updateHomeAgentControls()
     }
 
     private fun setupToolbar() {
@@ -96,6 +112,16 @@ class SettingsActivity : AppCompatActivity() {
                 MonitoringStrategy.HOME_AGENT -> R.id.rbHomeAgent
             }
         )
+
+        val watchdogMinutes = HomeAgentWatchdog.intervalMinutes(this)
+        binding.seekBarHomeAgentWatchdog.progress = watchdogProgress(watchdogMinutes)
+        binding.tvHomeAgentWatchdogValue.text = "$watchdogMinutes мин"
+        binding.etMissedHeartbeats.setText(HomeAgentWatchdog.missedHeartbeats(this).toString())
+        binding.spinnerHomeAgentFallback.setSelection(
+            if (HomeAgentWatchdog.fallbackStrategy(this) == MonitoringStrategy.RELIABLE) 0 else 1
+        )
+        binding.switchHomeAgentAutoReturn.isChecked = HomeAgentWatchdog.autoReturnEnabled(this)
+        updateHomeAgentControls(strategy)
         updatePlaylistSummary()
     }
 
@@ -129,8 +155,66 @@ class SettingsActivity : AppCompatActivity() {
                 .edit()
                 .putString(KEY_MONITORING_STRATEGY, strategy.storedValue)
                 .apply()
+            updateHomeAgentControls(strategy)
             MonitoringController.reconfigure(this)
         }
+
+        binding.seekBarHomeAgentWatchdog.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                val minutes = watchdogMinutesFromProgress(progress)
+                binding.tvHomeAgentWatchdogValue.text = "$minutes мин"
+                if (fromUser) {
+                    PreferenceManager.getDefaultSharedPreferences(this@SettingsActivity)
+                        .edit()
+                        .putInt(KEY_HOME_AGENT_WATCHDOG_INTERVAL, minutes)
+                        .apply()
+                    if (selectedStrategy() == MonitoringStrategy.HOME_AGENT) HomeAgentWatchdog.schedule(this@SettingsActivity)
+                    updateHomeAgentStatus()
+                }
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+        })
+
+        binding.etMissedHeartbeats.doAfterTextChanged { text ->
+            val count = text?.toString()?.toIntOrNull()?.coerceIn(1, 9) ?: return@doAfterTextChanged
+            PreferenceManager.getDefaultSharedPreferences(this)
+                .edit()
+                .putInt(KEY_HOME_AGENT_MISSED_HEARTBEATS, count)
+                .apply()
+            if (selectedStrategy() == MonitoringStrategy.HOME_AGENT) HomeAgentWatchdog.schedule(this)
+            updateHomeAgentStatus()
+        }
+
+        binding.spinnerHomeAgentFallback.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                val fallback = if (position == 0) MonitoringStrategy.RELIABLE else MonitoringStrategy.ECONOMY
+                PreferenceManager.getDefaultSharedPreferences(this@SettingsActivity)
+                    .edit()
+                    .putString(KEY_HOME_AGENT_FALLBACK_STRATEGY, fallback.storedValue)
+                    .apply()
+                if (selectedStrategy() == MonitoringStrategy.HOME_AGENT && HomeAgentWatchdog.isFallbackActive(this@SettingsActivity)) {
+                    MonitoringController.startHomeAgentFallback(this@SettingsActivity, fallback)
+                }
+                updateHomeAgentStatus()
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+        }
+
+        binding.switchHomeAgentAutoReturn.setOnCheckedChangeListener { _, checked ->
+            PreferenceManager.getDefaultSharedPreferences(this)
+                .edit()
+                .putBoolean(KEY_HOME_AGENT_AUTO_RETURN, checked)
+                .apply()
+            updateHomeAgentStatus()
+        }
+
+        binding.btnReturnToHomeAgent.setOnClickListener {
+            HomeAgentWatchdog.returnToHomeAgent(this)
+            updateHomeAgentStatus()
+        }
+
+        binding.btnGrantHomeAgentExactAlarm.setOnClickListener { requestExactAlarmAccess() }
 
         binding.seekBarVolume.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
@@ -193,6 +277,65 @@ class SettingsActivity : AppCompatActivity() {
         clipboard.setPrimaryClip(ClipData.newPlainText("FCM token", token))
         Toast.makeText(this, "FCM-токен скопирован", Toast.LENGTH_SHORT).show()
     }
+
+    private fun updateHomeAgentControls(strategy: MonitoringStrategy = selectedStrategy()) {
+        val homeAgentSelected = strategy == MonitoringStrategy.HOME_AGENT
+        binding.localIntervalCard.visibility = if (homeAgentSelected) View.GONE else View.VISIBLE
+        binding.homeAgentSettingsContainer.visibility = if (homeAgentSelected) View.VISIBLE else View.GONE
+        binding.btnGrantHomeAgentExactAlarm.visibility = if (homeAgentSelected && !canScheduleExactAlarms()) View.VISIBLE else View.GONE
+        if (homeAgentSelected) updateHomeAgentStatus()
+    }
+
+    private fun updateHomeAgentStatus() {
+        if (selectedStrategy() != MonitoringStrategy.HOME_AGENT) return
+        val fallback = HomeAgentWatchdog.isFallbackActive(this)
+        val lastHeartbeat = HomeAgentWatchdog.lastHeartbeatAt(this)
+        val strategyName = when (HomeAgentWatchdog.fallbackStrategy(this)) {
+            MonitoringStrategy.RELIABLE -> "Надёжный режим"
+            else -> "Экономия"
+        }
+        binding.tvHomeAgentStatus.text = when {
+            fallback && HomeAgentWatchdog.autoReturnEnabled(this) ->
+                "Резервный режим: $strategyName. Ожидание двух heartbeat для возврата."
+            fallback -> "Резервный режим: $strategyName. Вернитесь вручную после восстановления ПК."
+            lastHeartbeat == 0L -> "Ожидание первого heartbeat от ПК"
+            else -> "Home Agent на связи: heartbeat ${formatHeartbeatAge(lastHeartbeat)}"
+        }
+        binding.btnReturnToHomeAgent.visibility = if (fallback && !HomeAgentWatchdog.autoReturnEnabled(this)) {
+            View.VISIBLE
+        } else {
+            View.GONE
+        }
+    }
+
+    private fun canScheduleExactAlarms(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
+        val alarmManager = getSystemService(AlarmManager::class.java) ?: return false
+        return alarmManager.canScheduleExactAlarms()
+    }
+
+    private fun requestExactAlarmAccess() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+        startActivity(
+            Intent(
+                Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                Uri.parse("package:$packageName")
+            )
+        )
+    }
+
+    private fun formatHeartbeatAge(timestamp: Long): String {
+        val seconds = ((System.currentTimeMillis() - timestamp).coerceAtLeast(0L) / 1_000L)
+        return when {
+            seconds < 60L -> "только что"
+            seconds < 120L -> "1 минуту назад"
+            else -> "${seconds / 60L} мин назад"
+        }
+    }
+
+    private fun watchdogMinutesFromProgress(progress: Int): Int = (progress.coerceIn(0, 4) + 1) * 5
+
+    private fun watchdogProgress(minutes: Int): Int = ((minutes.coerceIn(5, 25) / 5) - 1)
 
     private fun selectedStrategy(): MonitoringStrategy = MonitoringStrategy.fromStoredValue(
         PreferenceManager.getDefaultSharedPreferences(this).getString(

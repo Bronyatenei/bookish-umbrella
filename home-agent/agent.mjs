@@ -10,6 +10,8 @@ const configPath = path.resolve(process.argv[2] ?? path.join(__dirname, "config.
 const statePath = path.join(path.dirname(configPath), "state.json");
 const twitchUrl = "https://gql.twitch.tv/gql";
 const twitchClientId = "kimne78kx3ncx6brgo4mv6wki5h1ko";
+const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
+const HEARTBEAT_STATE_KEY = "__homeAgentHeartbeat";
 
 async function readJson(file) {
   return JSON.parse(await fs.readFile(file, "utf8"));
@@ -63,6 +65,34 @@ async function checkStreams(logins) {
   });
 }
 
+function describeError(error) {
+  const parts = [`${error?.name || "Error"}: ${error?.message || String(error)}`];
+  const cause = error?.cause;
+  if (cause) {
+    const causeDetails = [cause.code, cause.message].filter(Boolean).join(": ");
+    if (causeDetails) parts.push(`cause: ${causeDetails}`);
+  }
+  return parts.join("; ");
+}
+
+async function sendHeartbeat(messaging, token) {
+  const sentAt = Date.now();
+  await messaging.send({
+    token,
+    data: {
+      type: "home_agent_heartbeat",
+      sent_at: String(sentAt)
+    },
+    android: {
+      priority: "high",
+      // A delayed heartbeat must expire rather than make an unavailable PC look healthy.
+      ttl: 2 * 60 * 1000
+    }
+  });
+  console.log(`[${new Date(sentAt).toISOString()}] heartbeat sent`);
+  return sentAt;
+}
+
 async function sendAlarm(messaging, token, stream) {
   const eventId = `${stream.login}:${stream.streamId || Date.now()}`;
   await messaging.send({
@@ -98,6 +128,7 @@ async function main() {
 
   console.log(`Home Agent started; checking ${config.channels.length} channel(s) every ${intervalMs / 1000}s.`);
   console.log("The first successful poll only initializes state; alarms are sent on offline -> online transitions.");
+  console.log("A health heartbeat is sent after successful checks at most once every 5 minutes.");
 
   let stopping = false;
   const stop = () => { stopping = true; };
@@ -115,9 +146,22 @@ async function main() {
         state[stream.login] = { isLive: stream.isLive, streamId: stream.streamId, checkedAt: new Date().toISOString() };
       }
       await writeState(state);
-      console.log(`[${new Date().toISOString()}] checked: ${results.map((x) => `${x.login}=${x.isLive ? "LIVE" : "offline"}`).join(", ")}`);
+
+      const lastHeartbeatAt = Number(state[HEARTBEAT_STATE_KEY]?.sentAt || 0);
+      let heartbeatLog;
+      if (Date.now() - lastHeartbeatAt >= HEARTBEAT_INTERVAL_MS) {
+        const sentAt = await sendHeartbeat(messaging, config.fcmToken);
+        state[HEARTBEAT_STATE_KEY] = { sentAt };
+        await writeState(state);
+        heartbeatLog = "heartbeat=sent";
+      } else {
+        const remainingSeconds = Math.max(0, Math.ceil((HEARTBEAT_INTERVAL_MS - (Date.now() - lastHeartbeatAt)) / 1000));
+        heartbeatLog = `heartbeat=next in ${Math.ceil(remainingSeconds / 60)}m`;
+      }
+
+      console.log(`[${new Date().toISOString()}] checked: ${results.map((x) => `${x.login}=${x.isLive ? "LIVE" : "offline"}`).join(", ")}; ${heartbeatLog}`);
     } catch (error) {
-      console.error(`[${new Date().toISOString()}] check failed: ${error.message}`);
+      console.error(`[${new Date().toISOString()}] check failed: ${describeError(error)}`);
     }
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }

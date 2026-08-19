@@ -22,7 +22,14 @@ class HomeAgentMessagingService : FirebaseMessagingService() {
 
     private suspend fun handle(data: Map<String, String>) {
         if (MonitoringController.selectedStrategy(this) != MonitoringStrategy.HOME_AGENT) return
-        if (data[KEY_TYPE] != EVENT_STREAM_ONLINE) return
+        when (data[KEY_TYPE]) {
+            EVENT_HEARTBEAT -> {
+                HomeAgentWatchdog.onHeartbeat(this)
+                return
+            }
+            EVENT_STREAM_ONLINE -> Unit
+            else -> return
+        }
 
         val login = data[KEY_LOGIN]?.trim()?.lowercase().orEmpty()
         if (login.isEmpty()) return
@@ -82,6 +89,7 @@ class HomeAgentMessagingService : FirebaseMessagingService() {
         private const val KEY_VIEWERS = "viewers"
         private const val KEY_EVENT_ID = "event_id"
         private const val EVENT_STREAM_ONLINE = "stream_online"
+        private const val EVENT_HEARTBEAT = "home_agent_heartbeat"
         private val EVENT_LOCK = Any()
     }
 }

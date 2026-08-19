@@ -21,7 +21,7 @@ npm install
 npm start
 ```
 
-The first successful poll only records the current state. The agent sends an alarm only when a later check observes an offline-to-live transition. `state.json` is created next to `config.json` so a restart does not produce a false alarm for an already-live channel.
+The first successful poll only records the current state. The agent sends an alarm only when a later check observes an offline-to-live transition. `state.json` is created next to `config.json` so a restart does not produce a false alarm for an already-live channel. After a successful Twitch check, the agent also sends a lightweight Home Agent heartbeat no more than once every five minutes. The Android app uses this heartbeat only to detect that the PC is healthy; it never starts an alarm.
 
 ## Test FCM before waiting for a real stream
 
@@ -38,6 +38,8 @@ For a full Russian setup guide, including Firebase, Windows Task Scheduler, secu
 ## Android setup
 
 In the Android app, select **Настройки → Домашний агент — проверки на ПК**. The phone ignores local polling strategies in this mode. It accepts an event only when the strategy is Home Agent, the matching streamer is present and enabled, and the event is not a duplicate. Turning off a streamer's notification toggle prevents that event from starting the alarm.
+
+The expanded Home Agent settings are controlled entirely on the phone: choose the heartbeat-watch interval (5–25 minutes), the number of missed intervals before fallback, the fallback strategy (**Надёжный** or **Экономия**), and whether to return automatically after the PC recovers. For accurate short intervals on Android 12+, grant **Будильники и напоминания** through the app's **Разрешить точный контроль** button.
 
 The agent uses Twitch's public GraphQL web client identifier, matching the existing Android implementation; no Twitch OAuth token or Twitch two-factor authentication is required by this project. Treat this as an implementation dependency that Twitch may change, not as a guaranteed public API contract.
 

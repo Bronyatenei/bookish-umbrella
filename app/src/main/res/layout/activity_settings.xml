@@ -25,6 +25,7 @@
             android:orientation="vertical">
 
             <com.google.android.material.card.MaterialCardView
+                android:id="@+id/localIntervalCard"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="16dp"
@@ -43,7 +44,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="⏱ Интервал проверки"
+                        android:text="⏱ Интервал локальной проверки"
                         android:textSize="16sp"
                         android:textStyle="bold"
                         android:textColor="@color/text_primary"
@@ -52,7 +53,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Как часто проверять стримеров"
+                        android:text="Используется в режимах Стабильность и Экономия"
                         android:textSize="13sp"
                         android:textColor="@color/text_hint"
                         android:layout_marginBottom="12dp"/>
@@ -173,23 +174,153 @@
                             android:textSize="12sp"
                             android:textColor="@color/text_hint"/>
 
-                        <TextView
-                            android:id="@+id/tvFcmTokenSummary"
+                        <LinearLayout
+                            android:id="@+id/homeAgentSettingsContainer"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
+                            android:layout_marginStart="32dp"
                             android:layout_marginTop="8dp"
-                            android:text="FCM-токен: получение…"
-                            android:textSize="12sp"
-                            android:textColor="@color/text_hint"
-                            android:maxLines="2"
-                            android:ellipsize="middle"/>
+                            android:orientation="vertical"
+                            android:visibility="gone">
 
-                        <Button
-                            android:id="@+id/btnCopyFcmToken"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Скопировать FCM-токен"
-                            android:textAllCaps="false"/>
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Подстраховка Home Agent"
+                                android:textSize="15sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/text_primary"/>
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:text="Компьютер подтверждает успешную работу раз в 5 минут. Телефон включит локальный режим, если подтверждения перестанут приходить."
+                                android:textSize="12sp"
+                                android:textColor="@color/text_hint"/>
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="12dp"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal">
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="Проверять состояние"
+                                    android:textColor="@color/text_primary"/>
+
+                                <TextView
+                                    android:id="@+id/tvHomeAgentWatchdogValue"
+                                    android:layout_width="60dp"
+                                    android:layout_height="wrap_content"
+                                    android:gravity="end"
+                                    android:text="5 мин"
+                                    android:textColor="@color/twitch_purple"
+                                    android:textStyle="bold"/>
+                            </LinearLayout>
+
+                            <SeekBar
+                                android:id="@+id/seekBarHomeAgentWatchdog"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:max="4"
+                                android:progress="0"
+                                android:progressTint="@color/twitch_purple"
+                                android:thumbTint="@color/twitch_purple"/>
+
+                            <com.google.android.material.textfield.TextInputLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="8dp"
+                                android:hint="Порог пропусков heartbeat (1–9)">
+
+                                <com.google.android.material.textfield.TextInputEditText
+                                    android:id="@+id/etMissedHeartbeats"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:inputType="number"
+                                    android:maxLength="1"
+                                    android:textColor="@color/text_primary"/>
+                            </com.google.android.material.textfield.TextInputLayout>
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:text="После указанного числа пропущенных интервалов включится локальная стратегия."
+                                android:textSize="12sp"
+                                android:textColor="@color/text_hint"/>
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="12dp"
+                                android:text="Если Home Agent недоступен"
+                                android:textColor="@color/text_primary"/>
+
+                            <Spinner
+                                android:id="@+id/spinnerHomeAgentFallback"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:entries="@array/home_agent_fallback_options"/>
+
+                            <com.google.android.material.switchmaterial.SwitchMaterial
+                                android:id="@+id/switchHomeAgentAutoReturn"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="8dp"
+                                android:text="Автоматически вернуться после восстановления ПК"
+                                android:textColor="@color/text_primary"/>
+
+                            <TextView
+                                android:id="@+id/tvHomeAgentStatus"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="8dp"
+                                android:text="Ожидание первого heartbeat от ПК"
+                                android:textSize="12sp"
+                                android:textColor="@color/text_hint"/>
+
+                            <Button
+                                android:id="@+id/btnGrantHomeAgentExactAlarm"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:text="Разрешить точный контроль"
+                                android:textAllCaps="false"
+                                android:visibility="gone"/>
+
+                            <Button
+                                android:id="@+id/btnReturnToHomeAgent"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:text="Вернуться к Home Agent"
+                                android:textAllCaps="false"
+                                android:visibility="gone"/>
+
+                            <TextView
+                                android:id="@+id/tvFcmTokenSummary"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="8dp"
+                                android:text="FCM-токен: получение…"
+                                android:textSize="12sp"
+                                android:textColor="@color/text_hint"
+                                android:maxLines="2"
+                                android:ellipsize="middle"/>
+
+                            <Button
+                                android:id="@+id/btnCopyFcmToken"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Скопировать FCM-токен"
+                                android:textAllCaps="false"/>
+                        </LinearLayout>
                     </RadioGroup>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
