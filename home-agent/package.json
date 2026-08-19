@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node agent.mjs"
+    "start": "node agent.mjs",
+    "test:fcm": "node test-fcm.mjs"
   },
   "dependencies": {
     "firebase-admin": "^13.4.0"
