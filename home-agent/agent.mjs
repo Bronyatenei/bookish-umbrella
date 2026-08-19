@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
@@ -13,6 +14,9 @@ const autoOpenPath = path.join(path.dirname(configPath), "auto-open.json");
 const twitchUrl = "https://gql.twitch.tv/gql";
 const twitchClientId = "kimne78kx3ncx6brgo4mv6wki5h1ko";
 const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
+const HEARTBEAT_TTL_MS = 20 * 60 * 1000;
+const HEARTBEAT_COLLAPSE_KEY = "twitch_alarm_home_agent_health";
+const HEARTBEAT_PROTOCOL_VERSION = "2";
 const HEARTBEAT_STATE_KEY = "__homeAgentHeartbeat";
 
 async function readJson(file) {
@@ -102,22 +106,28 @@ function describeError(error) {
   return parts.join("; ");
 }
 
-async function sendHeartbeat(messaging, token) {
+async function sendHeartbeat(messaging, token, sessionId, sequence) {
   const sentAt = Date.now();
+  const heartbeatId = `${sessionId}:${sequence}`;
   await messaging.send({
     token,
     data: {
       type: "home_agent_heartbeat",
+      version: HEARTBEAT_PROTOCOL_VERSION,
+      heartbeat_id: heartbeatId,
+      session_id: sessionId,
+      sequence: String(sequence),
       sent_at: String(sentAt)
     },
     android: {
       priority: "high",
-      // A delayed heartbeat must expire rather than make an unavailable PC look healthy.
-      ttl: 2 * 60 * 1000
+      // Keep only the latest health state if the phone reconnects after a delay.
+      collapseKey: HEARTBEAT_COLLAPSE_KEY,
+      ttl: HEARTBEAT_TTL_MS
     }
   });
-  console.log(`[${new Date(sentAt).toISOString()}] heartbeat sent`);
-  return sentAt;
+  console.log(`[${new Date(sentAt).toISOString()}] heartbeat sent; id=${heartbeatId}`);
+  return { sentAt, sequence, heartbeatId };
 }
 
 async function sendAlarm(messaging, token, stream) {
@@ -152,6 +162,7 @@ async function main() {
   const messaging = getMessaging(firebaseApp);
   const state = await readState();
   const intervalMs = Math.max(15, Number(config.pollIntervalSeconds || 60)) * 1000;
+  const heartbeatSessionId = randomUUID();
 
   console.log(`Home Agent started; checking ${config.channels.length} channel(s) every ${intervalMs / 1000}s.`);
   console.log("The first successful poll only initializes state; alarms are sent on offline -> online transitions.");
@@ -179,10 +190,16 @@ async function main() {
       const lastHeartbeatAt = Number(state[HEARTBEAT_STATE_KEY]?.sentAt || 0);
       let heartbeatLog;
       if (Date.now() - lastHeartbeatAt >= HEARTBEAT_INTERVAL_MS) {
-        const sentAt = await sendHeartbeat(messaging, config.fcmToken);
-        state[HEARTBEAT_STATE_KEY] = { sentAt };
+        const nextHeartbeatSequence = Math.max(0, Number(state[HEARTBEAT_STATE_KEY]?.sequence || 0)) + 1;
+        const heartbeat = await sendHeartbeat(
+          messaging,
+          config.fcmToken,
+          heartbeatSessionId,
+          nextHeartbeatSequence
+        );
+        state[HEARTBEAT_STATE_KEY] = { sentAt: heartbeat.sentAt, sequence: heartbeat.sequence };
         await writeState(state);
-        heartbeatLog = "heartbeat=sent";
+        heartbeatLog = `heartbeat=sent #${heartbeat.sequence}`;
       } else {
         const remainingSeconds = Math.max(0, Math.ceil((HEARTBEAT_INTERVAL_MS - (Date.now() - lastHeartbeatAt)) / 1000));
         heartbeatLog = `heartbeat=next in ${Math.ceil(remainingSeconds / 60)}m`;
