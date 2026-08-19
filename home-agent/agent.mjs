@@ -52,8 +52,14 @@ async function isAutoOpenEnabled() {
 /** Opens the system-default browser without waiting for it or affecting FCM delivery. */
 function openStreamInBrowser(stream) {
   const streamUrl = `https://www.twitch.tv/${encodeURIComponent(stream.login)}`;
-  const command = `start "" "${streamUrl}"`;
-  const launcher = spawn("cmd.exe", ["/d", "/s", "/c", command], {
+  // Use the same ShellExecute path as PowerShell Start-Process, which works with
+  // the user's registered browser (including Firefox) from an interactive task.
+  const launcher = spawn("powershell.exe", [
+    "-NoProfile",
+    "-NonInteractive",
+    "-WindowStyle", "Hidden",
+    "-Command", `Start-Process -FilePath '${streamUrl}'`
+  ], {
     detached: true,
     stdio: "ignore",
     windowsHide: true
@@ -61,8 +67,13 @@ function openStreamInBrowser(stream) {
   launcher.on("error", (error) => {
     console.error(`[${new Date().toISOString()}] browser open failed for ${stream.login}: ${describeError(error)}`);
   });
+  launcher.on("exit", (code) => {
+    if (code !== 0) {
+      console.error(`[${new Date().toISOString()}] browser launcher exited with code ${code} for ${stream.login}`);
+    }
+  });
   launcher.unref();
-  console.log(`[${new Date().toISOString()}] browser opened: ${streamUrl}`);
+  console.log(`[${new Date().toISOString()}] browser open requested: ${streamUrl}`);
 }
 
 function makeQuery(logins) {
