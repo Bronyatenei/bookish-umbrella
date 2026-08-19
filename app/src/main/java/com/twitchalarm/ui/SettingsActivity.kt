@@ -279,10 +279,11 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun updateHomeAgentControls(strategy: MonitoringStrategy = selectedStrategy()) {
-        val visible = strategy == MonitoringStrategy.HOME_AGENT
-        binding.homeAgentSettingsContainer.visibility = if (visible) View.VISIBLE else View.GONE
-        binding.btnGrantHomeAgentExactAlarm.visibility = if (visible && !canScheduleExactAlarms()) View.VISIBLE else View.GONE
-        if (visible) updateHomeAgentStatus()
+        val homeAgentSelected = strategy == MonitoringStrategy.HOME_AGENT
+        binding.localIntervalCard.visibility = if (homeAgentSelected) View.GONE else View.VISIBLE
+        binding.homeAgentSettingsContainer.visibility = if (homeAgentSelected) View.VISIBLE else View.GONE
+        binding.btnGrantHomeAgentExactAlarm.visibility = if (homeAgentSelected && !canScheduleExactAlarms()) View.VISIBLE else View.GONE
+        if (homeAgentSelected) updateHomeAgentStatus()
     }
 
     private fun updateHomeAgentStatus() {

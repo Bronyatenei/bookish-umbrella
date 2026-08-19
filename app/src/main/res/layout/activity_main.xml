@@ -19,7 +19,21 @@
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             android:paddingHorizontal="16dp"
-            app:titleTextColor="@color/text_primary" />
+            app:titleTextColor="@color/text_primary">
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipActiveStrategy"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:layout_gravity="end|center_vertical"
+                android:layout_marginEnd="112dp"
+                android:text="Режим"
+                android:textColor="@color/white"
+                android:textSize="11sp"
+                android:visibility="gone"
+                app:chipCornerRadius="16dp"
+                app:ensureMinTouchTargetSize="false" />
+        </com.google.android.material.appbar.MaterialToolbar>
     </com.google.android.material.appbar.AppBarLayout>
 
     <!-- Main content -->

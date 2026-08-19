@@ -148,13 +148,18 @@ async function main() {
       await writeState(state);
 
       const lastHeartbeatAt = Number(state[HEARTBEAT_STATE_KEY]?.sentAt || 0);
+      let heartbeatLog;
       if (Date.now() - lastHeartbeatAt >= HEARTBEAT_INTERVAL_MS) {
         const sentAt = await sendHeartbeat(messaging, config.fcmToken);
         state[HEARTBEAT_STATE_KEY] = { sentAt };
         await writeState(state);
+        heartbeatLog = "heartbeat=sent";
+      } else {
+        const remainingSeconds = Math.max(0, Math.ceil((HEARTBEAT_INTERVAL_MS - (Date.now() - lastHeartbeatAt)) / 1000));
+        heartbeatLog = `heartbeat=next in ${Math.ceil(remainingSeconds / 60)}m`;
       }
 
-      console.log(`[${new Date().toISOString()}] checked: ${results.map((x) => `${x.login}=${x.isLive ? "LIVE" : "offline"}`).join(", ")}`);
+      console.log(`[${new Date().toISOString()}] checked: ${results.map((x) => `${x.login}=${x.isLive ? "LIVE" : "offline"}`).join(", ")}; ${heartbeatLog}`);
     } catch (error) {
       console.error(`[${new Date().toISOString()}] check failed: ${describeError(error)}`);
     }

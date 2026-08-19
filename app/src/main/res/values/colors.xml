@@ -31,6 +31,11 @@
     <!-- Status colors -->
     <color name="offline_grey">#B8B8C7</color>
     <color name="live_red">#FF0000</color>
+    <color name="strategy_home_agent">#137A7F</color>
+    <color name="strategy_reliable">#6F35C7</color>
+    <color name="strategy_economy">#345E9E</color>
+    <color name="strategy_fallback">#A86500</color>
+    <color name="strategy_disabled">#42425C</color>
     
     <!-- Other -->
     <color name="white">#FFFFFF</color>

@@ -18,6 +18,7 @@ import java.util.concurrent.TimeUnit
  */
 object HomeAgentWatchdog {
     const val ACTION_CHECK = "com.twitchalarm.action.HOME_AGENT_WATCHDOG"
+    const val ACTION_STATUS_CHANGED = "com.twitchalarm.action.HOME_AGENT_STATUS_CHANGED"
 
     private const val PREFS = "home_agent_watchdog"
     private const val KEY_LAST_HEARTBEAT_AT = "last_heartbeat_at"
@@ -40,6 +41,7 @@ object HomeAgentWatchdog {
             .apply()
         MonitoringController.stopHomeAgentFallback(context)
         schedule(context)
+        publishStatus(context)
     }
 
     /** Keeps an existing Home Agent session intact, or starts a fresh session after all streamers were disabled. */
@@ -59,6 +61,7 @@ object HomeAgentWatchdog {
             .putBoolean(KEY_FALLBACK_ACTIVE, false)
             .putInt(KEY_RECOVERY_HEARTBEATS, 0)
             .apply()
+        publishStatus(context)
     }
 
     fun schedule(context: Context) {
@@ -107,6 +110,7 @@ object HomeAgentWatchdog {
             editor.putInt(KEY_RECOVERY_HEARTBEATS, 0).apply()
         }
         schedule(appContext)
+        publishStatus(appContext)
     }
 
     suspend fun evaluate(context: Context) {
@@ -136,6 +140,7 @@ object HomeAgentWatchdog {
             MonitoringController.startHomeAgentFallback(appContext, fallbackStrategy(appContext))
         }
         schedule(appContext)
+        publishStatus(appContext)
     }
 
     fun returnToHomeAgent(context: Context) {
@@ -148,6 +153,14 @@ object HomeAgentWatchdog {
             .apply()
         MonitoringController.stopHomeAgentFallback(appContext)
         schedule(appContext)
+        publishStatus(appContext)
+    }
+
+    private fun publishStatus(context: Context) {
+        val appContext = context.applicationContext
+        appContext.sendBroadcast(
+            Intent(ACTION_STATUS_CHANGED).setPackage(appContext.packageName)
+        )
     }
 
     fun isFallbackActive(context: Context): Boolean = preferences(context)

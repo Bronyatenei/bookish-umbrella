@@ -145,8 +145,10 @@ npm start
 ```text
 Home Agent started; checking 3 channel(s) every 60s.
 The first successful poll only initializes state; alarms are sent on offline -> online transitions.
-... checked: bellmarytank=offline, tyuuba=offline, maku_q=offline
+... checked: bellmarytank=offline, tyuuba=offline, maku_q=offline; heartbeat=sent
 ```
+
+Последующие успешные проверки показывают либо `heartbeat=sent`, либо, например, `heartbeat=next in 3m`. Это позволяет отличить работающий обновлённый Agent от старой версии и видеть, когда телефон должен получить очередное подтверждение.
 
 Первая удачная проверка только создаёт `state.json` и **не должна** включить тревогу для уже идущего стрима. Далее агент отправляет FCM лишь при обнаружении перехода `offline → LIVE`. Это исключает ложную тревогу после перезапуска агента.
 

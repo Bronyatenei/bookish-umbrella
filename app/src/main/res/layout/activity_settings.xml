@@ -25,6 +25,7 @@
             android:orientation="vertical">
 
             <com.google.android.material.card.MaterialCardView
+                android:id="@+id/localIntervalCard"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="16dp"
@@ -43,7 +44,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="⏱ Интервал проверки"
+                        android:text="⏱ Интервал локальной проверки"
                         android:textSize="16sp"
                         android:textStyle="bold"
                         android:textColor="@color/text_primary"
@@ -52,7 +53,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Как часто проверять стримеров"
+                        android:text="Используется в режимах Стабильность и Экономия"
                         android:textSize="13sp"
                         android:textColor="@color/text_hint"
                         android:layout_marginBottom="12dp"/>
