@@ -22,11 +22,19 @@ object HomeAgentWatchdog {
 
     private const val PREFS = "home_agent_watchdog"
     private const val KEY_LAST_HEARTBEAT_AT = "last_heartbeat_at"
+    private const val KEY_LAST_HEARTBEAT_SESSION_ID = "last_heartbeat_session_id"
+    private const val KEY_LAST_HEARTBEAT_SEQUENCE = "last_heartbeat_sequence"
+    private const val KEY_LAST_HEARTBEAT_ID = "last_heartbeat_id"
     private const val KEY_SESSION_STARTED_AT = "session_started_at"
     private const val KEY_FALLBACK_ACTIVE = "fallback_active"
     private const val KEY_RECOVERY_HEARTBEATS = "recovery_heartbeats"
     private const val REQUEST_CODE = 4301
     private const val RECOVERY_HEARTBEATS_REQUIRED = 2
+    // The PC sends heartbeat on a fixed cadence, while FCM delivery and Android wakeups have
+    // small independent jitter. Keep a bounded grace period to avoid false fallback exactly
+    // on the timeout boundary without weakening the configurable missed-heartbeat threshold.
+    private val FCM_DELIVERY_GRACE_MILLIS = TimeUnit.SECONDS.toMillis(90)
+    private val MAX_CLOCK_SKEW_MILLIS = TimeUnit.MINUTES.toMillis(5)
 
     const val DEFAULT_WATCHDOG_INTERVAL_MINUTES = 5
     const val DEFAULT_MISSED_HEARTBEATS = 2
@@ -35,6 +43,9 @@ object HomeAgentWatchdog {
     fun beginSession(context: Context) {
         preferences(context).edit()
             .remove(KEY_LAST_HEARTBEAT_AT)
+            .remove(KEY_LAST_HEARTBEAT_SESSION_ID)
+            .remove(KEY_LAST_HEARTBEAT_SEQUENCE)
+            .remove(KEY_LAST_HEARTBEAT_ID)
             .putLong(KEY_SESSION_STARTED_AT, System.currentTimeMillis())
             .putBoolean(KEY_FALLBACK_ACTIVE, false)
             .putInt(KEY_RECOVERY_HEARTBEATS, 0)
@@ -57,6 +68,9 @@ object HomeAgentWatchdog {
         cancel(context)
         preferences(context).edit()
             .remove(KEY_LAST_HEARTBEAT_AT)
+            .remove(KEY_LAST_HEARTBEAT_SESSION_ID)
+            .remove(KEY_LAST_HEARTBEAT_SEQUENCE)
+            .remove(KEY_LAST_HEARTBEAT_ID)
             .remove(KEY_SESSION_STARTED_AT)
             .putBoolean(KEY_FALLBACK_ACTIVE, false)
             .putInt(KEY_RECOVERY_HEARTBEATS, 0)
@@ -86,16 +100,31 @@ object HomeAgentWatchdog {
         appContext.getSystemService(AlarmManager::class.java)?.cancel(pendingIntent(appContext))
     }
 
-    suspend fun onHeartbeat(context: Context) {
+    /**
+     * Accepts only a fresh heartbeat from the newest agent session. Version 2 heartbeat carries
+     * the successful PC-check time, an agent session ID and a monotonically increasing sequence.
+     * Legacy heartbeat is accepted by receipt time so already-installed agents keep working until
+     * they are updated.
+     */
+    suspend fun onHeartbeat(context: Context, heartbeat: Heartbeat): Boolean {
         val appContext = context.applicationContext
-        if (MonitoringController.selectedStrategy(appContext) != MonitoringStrategy.HOME_AGENT) return
+        if (MonitoringController.selectedStrategy(appContext) != MonitoringStrategy.HOME_AGENT) return false
         if (AppDatabase.getInstance(appContext).streamerDao().getEnabled().isEmpty()) {
             endSession(appContext)
-            return
+            return false
         }
 
         val prefs = preferences(appContext)
-        val editor = prefs.edit().putLong(KEY_LAST_HEARTBEAT_AT, System.currentTimeMillis())
+        val accepted = acceptHeartbeat(prefs, heartbeat)
+        if (!accepted.accepted) return false
+
+        val editor = prefs.edit().putLong(KEY_LAST_HEARTBEAT_AT, accepted.sentAtMillis)
+        if (heartbeat.isVersion2) {
+            editor
+                .putString(KEY_LAST_HEARTBEAT_SESSION_ID, heartbeat.sessionId)
+                .putLong(KEY_LAST_HEARTBEAT_SEQUENCE, heartbeat.sequence)
+                .putString(KEY_LAST_HEARTBEAT_ID, heartbeat.id)
+        }
         if (isFallbackActive(appContext) && autoReturnEnabled(appContext)) {
             val count = prefs.getInt(KEY_RECOVERY_HEARTBEATS, 0) + 1
             editor.putInt(KEY_RECOVERY_HEARTBEATS, count).apply()
@@ -111,6 +140,7 @@ object HomeAgentWatchdog {
         }
         schedule(appContext)
         publishStatus(appContext)
+        return true
     }
 
     suspend fun evaluate(context: Context) {
@@ -149,6 +179,9 @@ object HomeAgentWatchdog {
             .putBoolean(KEY_FALLBACK_ACTIVE, false)
             .putInt(KEY_RECOVERY_HEARTBEATS, 0)
             .putLong(KEY_LAST_HEARTBEAT_AT, System.currentTimeMillis())
+            .remove(KEY_LAST_HEARTBEAT_SESSION_ID)
+            .remove(KEY_LAST_HEARTBEAT_SEQUENCE)
+            .remove(KEY_LAST_HEARTBEAT_ID)
             .putLong(KEY_SESSION_STARTED_AT, System.currentTimeMillis())
             .apply()
         MonitoringController.stopHomeAgentFallback(appContext)
@@ -161,6 +194,30 @@ object HomeAgentWatchdog {
         appContext.sendBroadcast(
             Intent(ACTION_STATUS_CHANGED).setPackage(appContext.packageName)
         )
+    }
+
+    private fun acceptHeartbeat(prefs: android.content.SharedPreferences, heartbeat: Heartbeat): AcceptedHeartbeat {
+        val now = System.currentTimeMillis()
+        if (!heartbeat.isVersion2) return AcceptedHeartbeat(true, now)
+
+        val sentAt = heartbeat.sentAtMillis ?: return AcceptedHeartbeat(false, 0L)
+        val sessionId = heartbeat.sessionId ?: return AcceptedHeartbeat(false, 0L)
+        val id = heartbeat.id ?: return AcceptedHeartbeat(false, 0L)
+        if (heartbeat.sequence < 1L) return AcceptedHeartbeat(false, 0L)
+        if (sentAt > now + MAX_CLOCK_SKEW_MILLIS) return AcceptedHeartbeat(false, 0L)
+        // A long-delayed old message must never make a stopped PC look healthy.
+        if (now - sentAt >= timeoutMillisFromPreferences(prefs)) return AcceptedHeartbeat(false, 0L)
+
+        val previousSentAt = prefs.getLong(KEY_LAST_HEARTBEAT_AT, 0L)
+        val previousSessionId = prefs.getString(KEY_LAST_HEARTBEAT_SESSION_ID, null)
+        val previousSequence = prefs.getLong(KEY_LAST_HEARTBEAT_SEQUENCE, 0L)
+        val previousId = prefs.getString(KEY_LAST_HEARTBEAT_ID, null)
+        if (id == previousId) return AcceptedHeartbeat(false, 0L)
+        if (previousSessionId != null && sentAt < previousSentAt) return AcceptedHeartbeat(false, 0L)
+        if (sessionId == previousSessionId && heartbeat.sequence <= previousSequence) {
+            return AcceptedHeartbeat(false, 0L)
+        }
+        return AcceptedHeartbeat(true, sentAt)
     }
 
     fun isFallbackActive(context: Context): Boolean = preferences(context)
@@ -190,9 +247,29 @@ object HomeAgentWatchdog {
         .getInt(SettingsActivity.KEY_HOME_AGENT_MISSED_HEARTBEATS, DEFAULT_MISSED_HEARTBEATS)
         .coerceIn(1, 9)
 
-    fun timeoutMillis(context: Context): Long = intervalMillis(context) * missedHeartbeats(context)
+    fun timeoutMillis(context: Context): Long = timeoutMillisFromPreferences(preferences(context))
+
+    private fun timeoutMillisFromPreferences(prefs: android.content.SharedPreferences): Long {
+        val interval = prefs.getInt(SettingsActivity.KEY_HOME_AGENT_WATCHDOG_INTERVAL, DEFAULT_WATCHDOG_INTERVAL_MINUTES)
+            .coerceIn(5, 25)
+        val missed = prefs.getInt(SettingsActivity.KEY_HOME_AGENT_MISSED_HEARTBEATS, DEFAULT_MISSED_HEARTBEATS)
+            .coerceIn(1, 9)
+        return TimeUnit.MINUTES.toMillis(interval.toLong()) * missed + FCM_DELIVERY_GRACE_MILLIS
+    }
 
     fun intervalMillis(context: Context): Long = TimeUnit.MINUTES.toMillis(intervalMinutes(context).toLong())
+
+    data class Heartbeat(
+        val version: Int?,
+        val id: String?,
+        val sessionId: String?,
+        val sequence: Long,
+        val sentAtMillis: Long?
+    ) {
+        val isVersion2: Boolean get() = version != null && version >= 2
+    }
+
+    private data class AcceptedHeartbeat(val accepted: Boolean, val sentAtMillis: Long)
 
     private fun preferences(context: Context) = context.applicationContext
         .getSharedPreferences(PREFS, Context.MODE_PRIVATE)

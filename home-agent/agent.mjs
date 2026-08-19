@@ -1,3 +1,5 @@
+import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
@@ -8,9 +10,13 @@ import { getMessaging } from "firebase-admin/messaging";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const configPath = path.resolve(process.argv[2] ?? path.join(__dirname, "config.json"));
 const statePath = path.join(path.dirname(configPath), "state.json");
+const autoOpenPath = path.join(path.dirname(configPath), "auto-open.json");
 const twitchUrl = "https://gql.twitch.tv/gql";
 const twitchClientId = "kimne78kx3ncx6brgo4mv6wki5h1ko";
 const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
+const HEARTBEAT_TTL_MS = 20 * 60 * 1000;
+const HEARTBEAT_COLLAPSE_KEY = "twitch_alarm_home_agent_health";
+const HEARTBEAT_PROTOCOL_VERSION = "2";
 const HEARTBEAT_STATE_KEY = "__homeAgentHeartbeat";
 
 async function readJson(file) {
@@ -29,6 +35,31 @@ async function writeState(state) {
   const temporary = `${statePath}.tmp`;
   await fs.writeFile(temporary, `${JSON.stringify(state, null, 2)}\n`, "utf8");
   await fs.rename(temporary, statePath);
+}
+
+/** The optional local switch is read on every polling cycle, so changing it needs no restart. */
+async function isAutoOpenEnabled() {
+  try {
+    return (await readJson(autoOpenPath)).openOnLive === true;
+  } catch {
+    return false;
+  }
+}
+
+/** Opens the system-default browser without waiting for it or affecting FCM delivery. */
+function openStreamInBrowser(stream) {
+  const streamUrl = `https://www.twitch.tv/${encodeURIComponent(stream.login)}`;
+  const command = `start "" "${streamUrl}"`;
+  const launcher = spawn("cmd.exe", ["/d", "/s", "/c", command], {
+    detached: true,
+    stdio: "ignore",
+    windowsHide: true
+  });
+  launcher.on("error", (error) => {
+    console.error(`[${new Date().toISOString()}] browser open failed for ${stream.login}: ${describeError(error)}`);
+  });
+  launcher.unref();
+  console.log(`[${new Date().toISOString()}] browser opened: ${streamUrl}`);
 }
 
 function makeQuery(logins) {
@@ -75,22 +106,28 @@ function describeError(error) {
   return parts.join("; ");
 }
 
-async function sendHeartbeat(messaging, token) {
+async function sendHeartbeat(messaging, token, sessionId, sequence) {
   const sentAt = Date.now();
+  const heartbeatId = `${sessionId}:${sequence}`;
   await messaging.send({
     token,
     data: {
       type: "home_agent_heartbeat",
+      version: HEARTBEAT_PROTOCOL_VERSION,
+      heartbeat_id: heartbeatId,
+      session_id: sessionId,
+      sequence: String(sequence),
       sent_at: String(sentAt)
     },
     android: {
       priority: "high",
-      // A delayed heartbeat must expire rather than make an unavailable PC look healthy.
-      ttl: 2 * 60 * 1000
+      // Keep only the latest health state if the phone reconnects after a delay.
+      collapseKey: HEARTBEAT_COLLAPSE_KEY,
+      ttl: HEARTBEAT_TTL_MS
     }
   });
-  console.log(`[${new Date(sentAt).toISOString()}] heartbeat sent`);
-  return sentAt;
+  console.log(`[${new Date(sentAt).toISOString()}] heartbeat sent; id=${heartbeatId}`);
+  return { sentAt, sequence, heartbeatId };
 }
 
 async function sendAlarm(messaging, token, stream) {
@@ -125,6 +162,7 @@ async function main() {
   const messaging = getMessaging(firebaseApp);
   const state = await readState();
   const intervalMs = Math.max(15, Number(config.pollIntervalSeconds || 60)) * 1000;
+  const heartbeatSessionId = randomUUID();
 
   console.log(`Home Agent started; checking ${config.channels.length} channel(s) every ${intervalMs / 1000}s.`);
   console.log("The first successful poll only initializes state; alarms are sent on offline -> online transitions.");
@@ -138,9 +176,11 @@ async function main() {
   while (!stopping) {
     try {
       const results = await checkStreams(config.channels.map((x) => String(x).trim().toLowerCase()).filter(Boolean));
+      const autoOpenEnabled = await isAutoOpenEnabled();
       for (const stream of results) {
         const previous = state[stream.login];
         if (previous && !previous.isLive && stream.isLive) {
+          if (autoOpenEnabled) openStreamInBrowser(stream);
           await sendAlarm(messaging, config.fcmToken, stream);
         }
         state[stream.login] = { isLive: stream.isLive, streamId: stream.streamId, checkedAt: new Date().toISOString() };
@@ -150,10 +190,16 @@ async function main() {
       const lastHeartbeatAt = Number(state[HEARTBEAT_STATE_KEY]?.sentAt || 0);
       let heartbeatLog;
       if (Date.now() - lastHeartbeatAt >= HEARTBEAT_INTERVAL_MS) {
-        const sentAt = await sendHeartbeat(messaging, config.fcmToken);
-        state[HEARTBEAT_STATE_KEY] = { sentAt };
+        const nextHeartbeatSequence = Math.max(0, Number(state[HEARTBEAT_STATE_KEY]?.sequence || 0)) + 1;
+        const heartbeat = await sendHeartbeat(
+          messaging,
+          config.fcmToken,
+          heartbeatSessionId,
+          nextHeartbeatSequence
+        );
+        state[HEARTBEAT_STATE_KEY] = { sentAt: heartbeat.sentAt, sequence: heartbeat.sequence };
         await writeState(state);
-        heartbeatLog = "heartbeat=sent";
+        heartbeatLog = `heartbeat=sent #${heartbeat.sequence}`;
       } else {
         const remainingSeconds = Math.max(0, Math.ceil((HEARTBEAT_INTERVAL_MS - (Date.now() - lastHeartbeatAt)) / 1000));
         heartbeatLog = `heartbeat=next in ${Math.ceil(remainingSeconds / 60)}m`;
