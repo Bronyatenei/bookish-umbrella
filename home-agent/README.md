@@ -23,6 +23,8 @@ npm start
 
 The first successful poll only records the current state. The agent sends an alarm only when a later check observes an offline-to-live transition. `state.json` is created next to `config.json` so a restart does not produce a false alarm for an already-live channel. After a successful Twitch check, the agent also sends a lightweight Home Agent heartbeat no more than once every five minutes. The Android app uses this heartbeat only to detect that the PC is healthy; it never starts an alarm.
 
+Heartbeat protocol v2 carries a unique heartbeat ID, the current Agent session ID, a monotonically increasing sequence, and the PC check time. FCM uses one collapse key and a 20-minute lifespan for health messages, so a reconnecting phone receives at most the newest pending state. The Android watchdog accepts only a newer heartbeat whose PC check time is still fresh, preventing an old delayed message from masking an unavailable PC. The watchdog remains an occasional AlarmManager wakeup; Home Agent does not keep an Android service running.
+
 To optionally open a detected new stream in the Windows default browser, double-click `toggle-auto-open.vbs` in the agent folder. It toggles the local `auto-open.json` setting and takes effect on the next polling cycle without restarting the Agent. This option affects only browser opening; it does not change Twitch polling, FCM alarms, or heartbeats.
 
 ## Test FCM before waiting for a real stream

@@ -1,5 +1,6 @@
 package com.twitchalarm.work
 
+import android.util.Log
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.twitchalarm.data.AppDatabase
@@ -24,7 +25,15 @@ class HomeAgentMessagingService : FirebaseMessagingService() {
         if (MonitoringController.selectedStrategy(this) != MonitoringStrategy.HOME_AGENT) return
         when (data[KEY_TYPE]) {
             EVENT_HEARTBEAT -> {
-                HomeAgentWatchdog.onHeartbeat(this)
+                val heartbeat = HomeAgentWatchdog.Heartbeat(
+                    version = data[KEY_HEARTBEAT_VERSION]?.toIntOrNull(),
+                    id = data[KEY_HEARTBEAT_ID],
+                    sessionId = data[KEY_HEARTBEAT_SESSION_ID],
+                    sequence = data[KEY_HEARTBEAT_SEQUENCE]?.toLongOrNull() ?: 0L,
+                    sentAtMillis = data[KEY_HEARTBEAT_SENT_AT]?.toLongOrNull()
+                )
+                val accepted = HomeAgentWatchdog.onHeartbeat(this, heartbeat)
+                Log.d(TAG, "Heartbeat ${if (accepted) "accepted" else "ignored"}: ${heartbeat.id ?: "legacy"}")
                 return
             }
             EVENT_STREAM_ONLINE -> Unit
@@ -81,7 +90,13 @@ class HomeAgentMessagingService : FirebaseMessagingService() {
     companion object {
         private const val PREFS = "home_agent_events"
         private const val KEY_LAST_EVENT_PREFIX = "last_"
+        private const val TAG = "HomeAgentMessaging"
         private const val KEY_TYPE = "type"
+        private const val KEY_HEARTBEAT_VERSION = "version"
+        private const val KEY_HEARTBEAT_ID = "heartbeat_id"
+        private const val KEY_HEARTBEAT_SESSION_ID = "session_id"
+        private const val KEY_HEARTBEAT_SEQUENCE = "sequence"
+        private const val KEY_HEARTBEAT_SENT_AT = "sent_at"
         private const val KEY_LOGIN = "login"
         private const val KEY_DISPLAY_NAME = "display_name"
         private const val KEY_TITLE = "title"
