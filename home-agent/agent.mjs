@@ -127,10 +127,13 @@ async function sendHeartbeat(messaging, token, sessionId, sequence, pendingStrea
     token,
     data,
     android: {
-      priority: "high",
+      // Health is diagnostic state, not a user-visible alarm. Normal priority avoids
+      // consuming the high-priority allowance reserved for an actual stream alert.
+      priority: "normal",
       // Keep only the latest health state if the phone reconnects after a delay.
       collapseKey: HEARTBEAT_COLLAPSE_KEY,
-      ttl: HEARTBEAT_TTL_MS
+      ttl: HEARTBEAT_TTL_MS,
+      fcmOptions: { analyticsLabel: "home-agent-health" }
     }
   });
   const relaySuffix = pendingStreamAlert ? `; relay=${pendingStreamAlert.eventId}` : "";
