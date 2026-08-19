@@ -4,9 +4,9 @@ Home Agent is an optional Windows process that checks the configured Twitch chan
 
 ## Prerequisites
 
-Install Node.js 20 or newer on Windows. In Firebase Console, open **Project settings → Service accounts**, generate a new private key, and save the downloaded JSON as `home-agent/service-account.json` on the Windows machine. This file is a private credential and must never be committed or sent through chat.
+Install Node.js 22 or newer on Windows. In Firebase Console, open **Project settings → Service accounts**, generate a new private key, and save the downloaded JSON as `home-agent/service-account.json` on the Windows machine. This file is a private credential and must never be committed or sent through chat.
 
-The Android device must be registered in Firebase and must have an FCM registration token. The token can be printed temporarily from the Android app during development or exposed through a future settings screen. Put the current token in `config.json`; FCM tokens can rotate, so update the file if the app reports a new token.
+The Android device must be registered in Firebase and must have an FCM registration token. In the app, open **Настройки**, choose the Home Agent strategy, then use **Скопировать FCM-токен**. Put the current token in `config.json`; FCM tokens can rotate, so update the file after reinstalling the app, clearing its data, or switching devices.
 
 ## Installation
 
@@ -22,6 +22,18 @@ npm start
 ```
 
 The first successful poll only records the current state. The agent sends an alarm only when a later check observes an offline-to-live transition. `state.json` is created next to `config.json` so a restart does not produce a false alarm for an already-live channel.
+
+## Test FCM before waiting for a real stream
+
+Set up the phone and `config.json` first, then run the following in the `home-agent` folder. Replace the login with an existing enabled streamer in the Android app:
+
+```powershell
+npm run test:fcm -- bellmarytank
+```
+
+This sends a real, high-priority test FCM event without querying Twitch. The Android app must be in **Домашний агент — проверки на ПК** mode for it to start the alarm.
+
+For a full Russian setup guide, including Firebase, Windows Task Scheduler, security, test troubleshooting, and automatic startup, read [WINDOWS_SETUP_RU.md](WINDOWS_SETUP_RU.md).
 
 ## Android setup
 
