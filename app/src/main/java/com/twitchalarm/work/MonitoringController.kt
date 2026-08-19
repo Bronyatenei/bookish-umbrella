@@ -32,6 +32,7 @@ object MonitoringController {
             MonitoringStrategy.HOME_AGENT -> {
                 appContext.stopService(Intent(appContext, StreamCheckService::class.java))
                 EconomyCheckReceiver.cancel(appContext)
+                HomeAgentWatchdog.ensureScheduled(appContext)
             }
         }
     }
@@ -51,10 +52,14 @@ object MonitoringController {
         val appContext = context.applicationContext
         appContext.stopService(Intent(appContext, StreamCheckService::class.java))
         EconomyCheckReceiver.cancel(appContext)
+        HomeAgentWatchdog.cancel(appContext)
         cancelLegacyWork(appContext)
 
         CoroutineScope(Dispatchers.IO).launch {
             if (AppDatabase.getInstance(appContext).streamerDao().getEnabled().isNotEmpty()) {
+                if (selectedStrategy(appContext) == MonitoringStrategy.HOME_AGENT) {
+                    HomeAgentWatchdog.beginSession(appContext)
+                }
                 start(appContext)
             }
         }
@@ -63,6 +68,30 @@ object MonitoringController {
     fun stop(context: Context) {
         val appContext = context.applicationContext
         cancelLegacyWork(appContext)
+        EconomyCheckReceiver.cancel(appContext)
+        HomeAgentWatchdog.endSession(appContext)
+        appContext.stopService(Intent(appContext, StreamCheckService::class.java))
+    }
+
+    /** Starts a local monitor while the selected strategy remains HOME_AGENT. */
+    fun startHomeAgentFallback(context: Context, fallback: MonitoringStrategy) {
+        val appContext = context.applicationContext
+        when (fallback) {
+            MonitoringStrategy.RELIABLE -> {
+                EconomyCheckReceiver.cancel(appContext)
+                startReliableService(appContext, StreamCheckService.ACTION_REFRESH)
+            }
+            MonitoringStrategy.ECONOMY -> {
+                appContext.stopService(Intent(appContext, StreamCheckService::class.java))
+                EconomyCheckReceiver.schedule(appContext, immediately = true)
+            }
+            MonitoringStrategy.HOME_AGENT -> Unit
+        }
+    }
+
+    /** Stops only a watchdog-triggered local fallback, preserving the Home Agent selection. */
+    fun stopHomeAgentFallback(context: Context) {
+        val appContext = context.applicationContext
         EconomyCheckReceiver.cancel(appContext)
         appContext.stopService(Intent(appContext, StreamCheckService::class.java))
     }

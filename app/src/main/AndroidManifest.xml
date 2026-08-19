@@ -82,6 +82,11 @@
             android:name=".work.EconomyCheckReceiver"
             android:exported="false" />
 
+        <!-- Home Agent heartbeat freshness watchdog. -->
+        <receiver
+            android:name=".work.HomeAgentWatchdogReceiver"
+            android:exported="false" />
+
         <!-- Exact and snoozed ordinary clock alarms. -->
         <receiver
             android:name=".work.ScheduledAlarmReceiver"
