@@ -27,6 +27,10 @@ object HomeAgentWatchdog {
     private const val KEY_RECOVERY_HEARTBEATS = "recovery_heartbeats"
     private const val REQUEST_CODE = 4301
     private const val RECOVERY_HEARTBEATS_REQUIRED = 2
+    // The PC sends heartbeat on a fixed cadence, while FCM delivery and Android wakeups have
+    // small independent jitter. Keep a bounded grace period to avoid false fallback exactly
+    // on the timeout boundary without weakening the configurable missed-heartbeat threshold.
+    private val FCM_DELIVERY_GRACE_MILLIS = TimeUnit.SECONDS.toMillis(90)
 
     const val DEFAULT_WATCHDOG_INTERVAL_MINUTES = 5
     const val DEFAULT_MISSED_HEARTBEATS = 2
@@ -190,7 +194,8 @@ object HomeAgentWatchdog {
         .getInt(SettingsActivity.KEY_HOME_AGENT_MISSED_HEARTBEATS, DEFAULT_MISSED_HEARTBEATS)
         .coerceIn(1, 9)
 
-    fun timeoutMillis(context: Context): Long = intervalMillis(context) * missedHeartbeats(context)
+    fun timeoutMillis(context: Context): Long =
+        intervalMillis(context) * missedHeartbeats(context) + FCM_DELIVERY_GRACE_MILLIS
 
     fun intervalMillis(context: Context): Long = TimeUnit.MINUTES.toMillis(intervalMinutes(context).toLong())
 
