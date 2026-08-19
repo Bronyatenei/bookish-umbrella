@@ -63,6 +63,16 @@ async function checkStreams(logins) {
   });
 }
 
+function describeError(error) {
+  const parts = [`${error?.name || "Error"}: ${error?.message || String(error)}`];
+  const cause = error?.cause;
+  if (cause) {
+    const causeDetails = [cause.code, cause.message].filter(Boolean).join(": ");
+    if (causeDetails) parts.push(`cause: ${causeDetails}`);
+  }
+  return parts.join("; ");
+}
+
 async function sendAlarm(messaging, token, stream) {
   const eventId = `${stream.login}:${stream.streamId || Date.now()}`;
   await messaging.send({
@@ -117,7 +127,7 @@ async function main() {
       await writeState(state);
       console.log(`[${new Date().toISOString()}] checked: ${results.map((x) => `${x.login}=${x.isLive ? "LIVE" : "offline"}`).join(", ")}`);
     } catch (error) {
-      console.error(`[${new Date().toISOString()}] check failed: ${error.message}`);
+      console.error(`[${new Date().toISOString()}] check failed: ${describeError(error)}`);
     }
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
