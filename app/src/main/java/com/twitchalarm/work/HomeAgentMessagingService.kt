@@ -66,14 +66,20 @@ class HomeAgentMessagingService : FirebaseMessagingService() {
             displayName = displayName
         )
 
-        // The PC agent owns transition detection. The phone only acts on a new event.
-        AlarmPlaybackService.start(
-            context = this,
-            displayName = displayName,
-            title = title,
-            game = game,
-            viewers = viewers
-        )
+        // The PC agent owns transition detection, but a parallel local check can discover
+        // the same Twitch stream first. Both sources share one stream-specific alarm key.
+        val streamId = eventId
+            ?.removePrefix("$login:")
+            ?.takeIf { it.isNotBlank() }
+        if (StreamAlertDeduplicator.shouldTrigger(this, login, streamId)) {
+            AlarmPlaybackService.start(
+                context = this,
+                displayName = displayName,
+                title = title,
+                game = game,
+                viewers = viewers
+            )
+        }
     }
 
     private fun rememberEvent(login: String, eventId: String): Boolean {

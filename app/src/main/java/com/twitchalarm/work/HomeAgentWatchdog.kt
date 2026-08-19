@@ -43,6 +43,8 @@ object HomeAgentWatchdog {
     const val DEFAULT_WATCHDOG_INTERVAL_MINUTES = 5
     const val DEFAULT_MISSED_HEARTBEATS = 2
     const val DEFAULT_AUTO_RETURN = true
+    const val DEFAULT_FALLBACK_ENABLED = true
+    const val DEFAULT_PARALLEL_BACKUP_ENABLED = false
 
     fun beginSession(context: Context) {
         preferences(context).edit()
@@ -185,7 +187,7 @@ object HomeAgentWatchdog {
             prefs.getLong(KEY_SESSION_STARTED_AT, System.currentTimeMillis())
         }
         val stale = System.currentTimeMillis() - referenceAt >= timeoutMillis(appContext)
-        if (stale && !isFallbackActive(appContext)) {
+        if (stale && fallbackEnabled(appContext) && !isFallbackActive(appContext)) {
             val reason = if (lastHeartbeatAt == 0L) {
                 "Не получен первый heartbeat"
             } else {
@@ -198,6 +200,20 @@ object HomeAgentWatchdog {
                 .putInt(KEY_RECOVERY_HEARTBEATS, 0)
                 .apply()
             MonitoringController.startHomeAgentFallback(appContext, fallbackStrategy(appContext))
+        }
+        schedule(appContext)
+        publishStatus(appContext)
+    }
+
+    /** Disables an active watchdog fallback immediately but keeps Home Agent status monitoring. */
+    fun setFallbackEnabled(context: Context, enabled: Boolean) {
+        val appContext = context.applicationContext
+        if (!enabled && isFallbackActive(appContext)) {
+            preferences(appContext).edit()
+                .putBoolean(KEY_FALLBACK_ACTIVE, false)
+                .putInt(KEY_RECOVERY_HEARTBEATS, 0)
+                .apply()
+            MonitoringController.stopHomeAgentFallback(appContext)
         }
         schedule(appContext)
         publishStatus(appContext)
@@ -286,6 +302,14 @@ object HomeAgentWatchdog {
     fun autoReturnEnabled(context: Context): Boolean = PreferenceManager
         .getDefaultSharedPreferences(context)
         .getBoolean(SettingsActivity.KEY_HOME_AGENT_AUTO_RETURN, DEFAULT_AUTO_RETURN)
+
+    fun fallbackEnabled(context: Context): Boolean = PreferenceManager
+        .getDefaultSharedPreferences(context)
+        .getBoolean(SettingsActivity.KEY_HOME_AGENT_FALLBACK_ENABLED, DEFAULT_FALLBACK_ENABLED)
+
+    fun parallelBackupEnabled(context: Context): Boolean = PreferenceManager
+        .getDefaultSharedPreferences(context)
+        .getBoolean(SettingsActivity.KEY_HOME_AGENT_PARALLEL_BACKUP, DEFAULT_PARALLEL_BACKUP_ENABLED)
 
     fun intervalMinutes(context: Context): Int = PreferenceManager
         .getDefaultSharedPreferences(context)

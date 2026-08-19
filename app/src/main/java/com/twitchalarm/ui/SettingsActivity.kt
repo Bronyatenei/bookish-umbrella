@@ -64,6 +64,8 @@ class SettingsActivity : AppCompatActivity() {
         const val KEY_HOME_AGENT_MISSED_HEARTBEATS = "home_agent_missed_heartbeats"
         const val KEY_HOME_AGENT_FALLBACK_STRATEGY = "home_agent_fallback_strategy"
         const val KEY_HOME_AGENT_AUTO_RETURN = "home_agent_auto_return"
+        const val KEY_HOME_AGENT_FALLBACK_ENABLED = "home_agent_fallback_enabled"
+        const val KEY_HOME_AGENT_PARALLEL_BACKUP = "home_agent_parallel_backup"
         const val DEFAULT_INTERVAL = 5
         const val DEFAULT_VOLUME = 100
         const val DEFAULT_FADE_SECONDS = 30
@@ -124,6 +126,8 @@ class SettingsActivity : AppCompatActivity() {
             if (HomeAgentWatchdog.fallbackStrategy(this) == MonitoringStrategy.RELIABLE) 0 else 1
         )
         binding.switchHomeAgentAutoReturn.isChecked = HomeAgentWatchdog.autoReturnEnabled(this)
+        binding.switchHomeAgentFallbackEnabled.isChecked = HomeAgentWatchdog.fallbackEnabled(this)
+        binding.switchHomeAgentParallelBackup.isChecked = HomeAgentWatchdog.parallelBackupEnabled(this)
         updateHomeAgentControls(strategy)
         updatePlaylistSummary()
     }
@@ -212,6 +216,28 @@ class SettingsActivity : AppCompatActivity() {
             updateHomeAgentStatus()
         }
 
+        binding.switchHomeAgentFallbackEnabled.setOnCheckedChangeListener { _, checked ->
+            PreferenceManager.getDefaultSharedPreferences(this)
+                .edit()
+                .putBoolean(KEY_HOME_AGENT_FALLBACK_ENABLED, checked)
+                .apply()
+            if (selectedStrategy() == MonitoringStrategy.HOME_AGENT) {
+                HomeAgentWatchdog.setFallbackEnabled(this, checked)
+            }
+            updateHomeAgentControls()
+        }
+
+        binding.switchHomeAgentParallelBackup.setOnCheckedChangeListener { _, checked ->
+            PreferenceManager.getDefaultSharedPreferences(this)
+                .edit()
+                .putBoolean(KEY_HOME_AGENT_PARALLEL_BACKUP, checked)
+                .apply()
+            if (selectedStrategy() == MonitoringStrategy.HOME_AGENT) {
+                MonitoringController.applyHomeAgentParallelBackup(this)
+            }
+            updateHomeAgentControls()
+        }
+
         binding.btnReturnToHomeAgent.setOnClickListener {
             HomeAgentWatchdog.returnToHomeAgent(this)
             updateHomeAgentStatus()
@@ -283,8 +309,23 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun updateHomeAgentControls(strategy: MonitoringStrategy = selectedStrategy()) {
         val homeAgentSelected = strategy == MonitoringStrategy.HOME_AGENT
-        binding.localIntervalCard.visibility = if (homeAgentSelected) View.GONE else View.VISIBLE
+        val parallelBackup = homeAgentSelected && HomeAgentWatchdog.parallelBackupEnabled(this)
+        val fallbackEnabled = HomeAgentWatchdog.fallbackEnabled(this)
+        binding.localIntervalCard.visibility = if (homeAgentSelected && !parallelBackup) View.GONE else View.VISIBLE
+        binding.tvLocalIntervalTitle.text = if (parallelBackup) {
+            "⏱ Интервал двойной страховки"
+        } else {
+            "⏱ Интервал локальной проверки"
+        }
+        binding.tvLocalIntervalSummary.text = if (parallelBackup) {
+            "Телефон редко проверяет Twitch параллельно с быстрым Home Agent на ПК"
+        } else {
+            "Используется в режимах Стабильность и Экономия"
+        }
         binding.homeAgentSettingsContainer.visibility = if (homeAgentSelected) View.VISIBLE else View.GONE
+        binding.etMissedHeartbeats.isEnabled = fallbackEnabled
+        binding.spinnerHomeAgentFallback.isEnabled = fallbackEnabled
+        binding.switchHomeAgentAutoReturn.isEnabled = fallbackEnabled
         binding.btnGrantHomeAgentExactAlarm.visibility = if (homeAgentSelected && !canScheduleExactAlarms()) View.VISIBLE else View.GONE
         if (homeAgentSelected) updateHomeAgentStatus()
     }
@@ -292,6 +333,8 @@ class SettingsActivity : AppCompatActivity() {
     private fun updateHomeAgentStatus() {
         if (selectedStrategy() != MonitoringStrategy.HOME_AGENT) return
         val fallback = HomeAgentWatchdog.isFallbackActive(this)
+        val fallbackEnabled = HomeAgentWatchdog.fallbackEnabled(this)
+        val parallelBackup = HomeAgentWatchdog.parallelBackupEnabled(this)
         val lastHeartbeat = HomeAgentWatchdog.lastHeartbeatAt(this)
         val receivedAt = HomeAgentWatchdog.lastHeartbeatReceivedAt(this)
         val heartbeatResult = HomeAgentWatchdog.lastHeartbeatResult(this)
@@ -307,6 +350,10 @@ class SettingsActivity : AppCompatActivity() {
             "Телефон ещё не принял heartbeat"
         }
         val pulseDetails = heartbeatResult?.let { "Последний пульс: $it" }.orEmpty()
+        val modeDetails = buildString {
+            append(if (fallbackEnabled) "Подстраховка при потере ПК включена" else "Подстраховка при потере ПК выключена")
+            if (parallelBackup) append("; двойная страховка включена")
+        }
         val fallbackDetails = if (lastFallbackAt > 0L) {
             "Последний fallback: ${formatLocalTime(lastFallbackAt)}${fallbackReason?.let { "; $it" }.orEmpty()}"
         } else {
@@ -314,13 +361,13 @@ class SettingsActivity : AppCompatActivity() {
         }
         binding.tvHomeAgentStatus.text = when {
             fallback && HomeAgentWatchdog.autoReturnEnabled(this) ->
-                "Резервный режим: $strategyName. Ожидание двух heartbeat для возврата.\n$fallbackDetails\n$receivedDetails\n$pulseDetails"
+                "Резервный режим: $strategyName. Ожидание двух heartbeat для возврата.\n$modeDetails\n$fallbackDetails\n$receivedDetails\n$pulseDetails"
             fallback ->
-                "Резервный режим: $strategyName. Вернитесь вручную после восстановления ПК.\n$fallbackDetails\n$receivedDetails\n$pulseDetails"
+                "Резервный режим: $strategyName. Вернитесь вручную после восстановления ПК.\n$modeDetails\n$fallbackDetails\n$receivedDetails\n$pulseDetails"
             lastHeartbeat == 0L ->
-                "Ожидание первого heartbeat от ПК.\n$receivedDetails\n$fallbackDetails"
+                "Ожидание первого heartbeat от ПК.\n$modeDetails\n$receivedDetails\n$fallbackDetails"
             else ->
-                "Home Agent на связи: heartbeat ${formatHeartbeatAge(lastHeartbeat)}\n$receivedDetails\n$pulseDetails\n$fallbackDetails"
+                "Home Agent на связи: heartbeat ${formatHeartbeatAge(lastHeartbeat)}\n$modeDetails\n$receivedDetails\n$pulseDetails\n$fallbackDetails"
         }
         binding.btnReturnToHomeAgent.visibility = if (fallback && !HomeAgentWatchdog.autoReturnEnabled(this)) {
             View.VISIBLE

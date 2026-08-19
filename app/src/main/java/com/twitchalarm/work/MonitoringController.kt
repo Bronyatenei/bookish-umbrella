@@ -31,8 +31,8 @@ object MonitoringController {
             }
             MonitoringStrategy.HOME_AGENT -> {
                 appContext.stopService(Intent(appContext, StreamCheckService::class.java))
-                EconomyCheckReceiver.cancel(appContext)
                 HomeAgentWatchdog.ensureScheduled(appContext)
+                applyHomeAgentParallelBackup(appContext)
             }
         }
     }
@@ -73,6 +73,17 @@ object MonitoringController {
         appContext.stopService(Intent(appContext, StreamCheckService::class.java))
     }
 
+    /** Applies the optional low-frequency local monitor while Home Agent remains selected. */
+    fun applyHomeAgentParallelBackup(context: Context) {
+        val appContext = context.applicationContext
+        if (selectedStrategy(appContext) != MonitoringStrategy.HOME_AGENT) return
+        if (HomeAgentWatchdog.parallelBackupEnabled(appContext)) {
+            EconomyCheckReceiver.schedule(appContext, immediately = false)
+        } else if (!HomeAgentWatchdog.isFallbackActive(appContext)) {
+            EconomyCheckReceiver.cancel(appContext)
+        }
+    }
+
     /** Starts a local monitor while the selected strategy remains HOME_AGENT. */
     fun startHomeAgentFallback(context: Context, fallback: MonitoringStrategy) {
         val appContext = context.applicationContext
@@ -89,11 +100,17 @@ object MonitoringController {
         }
     }
 
-    /** Stops only a watchdog-triggered local fallback, preserving the Home Agent selection. */
+    /** Stops only a watchdog-triggered local fallback, preserving an optional parallel economy check. */
     fun stopHomeAgentFallback(context: Context) {
         val appContext = context.applicationContext
-        EconomyCheckReceiver.cancel(appContext)
         appContext.stopService(Intent(appContext, StreamCheckService::class.java))
+        if (HomeAgentWatchdog.parallelBackupEnabled(appContext) &&
+            selectedStrategy(appContext) == MonitoringStrategy.HOME_AGENT
+        ) {
+            EconomyCheckReceiver.schedule(appContext, immediately = false)
+        } else {
+            EconomyCheckReceiver.cancel(appContext)
+        }
     }
 
     fun selectedStrategy(context: Context): MonitoringStrategy = MonitoringStrategy.fromStoredValue(
