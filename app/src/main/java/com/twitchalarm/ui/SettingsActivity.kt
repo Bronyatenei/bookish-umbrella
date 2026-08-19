@@ -26,6 +26,9 @@ import com.twitchalarm.work.MonitoringController
 import com.twitchalarm.work.FcmTokenStore
 import com.twitchalarm.work.MonitoringStrategy
 import com.twitchalarm.work.HomeAgentWatchdog
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class SettingsActivity : AppCompatActivity() {
 
@@ -290,16 +293,34 @@ class SettingsActivity : AppCompatActivity() {
         if (selectedStrategy() != MonitoringStrategy.HOME_AGENT) return
         val fallback = HomeAgentWatchdog.isFallbackActive(this)
         val lastHeartbeat = HomeAgentWatchdog.lastHeartbeatAt(this)
+        val receivedAt = HomeAgentWatchdog.lastHeartbeatReceivedAt(this)
+        val heartbeatResult = HomeAgentWatchdog.lastHeartbeatResult(this)
+        val lastFallbackAt = HomeAgentWatchdog.lastFallbackAt(this)
+        val fallbackReason = HomeAgentWatchdog.lastFallbackReason(this)
         val strategyName = when (HomeAgentWatchdog.fallbackStrategy(this)) {
             MonitoringStrategy.RELIABLE -> "Надёжный режим"
             else -> "Экономия"
         }
+        val receivedDetails = if (receivedAt > 0L) {
+            "Телефон принял: ${formatLocalTime(receivedAt)}"
+        } else {
+            "Телефон ещё не принял heartbeat"
+        }
+        val pulseDetails = heartbeatResult?.let { "Последний пульс: $it" }.orEmpty()
+        val fallbackDetails = if (lastFallbackAt > 0L) {
+            "Последний fallback: ${formatLocalTime(lastFallbackAt)}${fallbackReason?.let { "; $it" }.orEmpty()}"
+        } else {
+            "Fallback в этой сессии не включался"
+        }
         binding.tvHomeAgentStatus.text = when {
             fallback && HomeAgentWatchdog.autoReturnEnabled(this) ->
-                "Резервный режим: $strategyName. Ожидание двух heartbeat для возврата."
-            fallback -> "Резервный режим: $strategyName. Вернитесь вручную после восстановления ПК."
-            lastHeartbeat == 0L -> "Ожидание первого heartbeat от ПК"
-            else -> "Home Agent на связи: heartbeat ${formatHeartbeatAge(lastHeartbeat)}"
+                "Резервный режим: $strategyName. Ожидание двух heartbeat для возврата.\n$fallbackDetails\n$receivedDetails\n$pulseDetails"
+            fallback ->
+                "Резервный режим: $strategyName. Вернитесь вручную после восстановления ПК.\n$fallbackDetails\n$receivedDetails\n$pulseDetails"
+            lastHeartbeat == 0L ->
+                "Ожидание первого heartbeat от ПК.\n$receivedDetails\n$fallbackDetails"
+            else ->
+                "Home Agent на связи: heartbeat ${formatHeartbeatAge(lastHeartbeat)}\n$receivedDetails\n$pulseDetails\n$fallbackDetails"
         }
         binding.btnReturnToHomeAgent.visibility = if (fallback && !HomeAgentWatchdog.autoReturnEnabled(this)) {
             View.VISIBLE
@@ -323,6 +344,9 @@ class SettingsActivity : AppCompatActivity() {
             )
         )
     }
+
+    private fun formatLocalTime(timestamp: Long): String =
+        SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(timestamp))
 
     private fun formatHeartbeatAge(timestamp: Long): String {
         val seconds = ((System.currentTimeMillis() - timestamp).coerceAtLeast(0L) / 1_000L)

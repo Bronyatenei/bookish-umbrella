@@ -22,6 +22,10 @@ object HomeAgentWatchdog {
 
     private const val PREFS = "home_agent_watchdog"
     private const val KEY_LAST_HEARTBEAT_AT = "last_heartbeat_at"
+    private const val KEY_LAST_HEARTBEAT_RECEIVED_AT = "last_heartbeat_received_at"
+    private const val KEY_LAST_HEARTBEAT_RESULT = "last_heartbeat_result"
+    private const val KEY_LAST_FALLBACK_AT = "last_fallback_at"
+    private const val KEY_LAST_FALLBACK_REASON = "last_fallback_reason"
     private const val KEY_LAST_HEARTBEAT_SESSION_ID = "last_heartbeat_session_id"
     private const val KEY_LAST_HEARTBEAT_SEQUENCE = "last_heartbeat_sequence"
     private const val KEY_LAST_HEARTBEAT_ID = "last_heartbeat_id"
@@ -43,6 +47,10 @@ object HomeAgentWatchdog {
     fun beginSession(context: Context) {
         preferences(context).edit()
             .remove(KEY_LAST_HEARTBEAT_AT)
+            .remove(KEY_LAST_HEARTBEAT_RECEIVED_AT)
+            .remove(KEY_LAST_HEARTBEAT_RESULT)
+            .remove(KEY_LAST_FALLBACK_AT)
+            .remove(KEY_LAST_FALLBACK_REASON)
             .remove(KEY_LAST_HEARTBEAT_SESSION_ID)
             .remove(KEY_LAST_HEARTBEAT_SEQUENCE)
             .remove(KEY_LAST_HEARTBEAT_ID)
@@ -68,6 +76,10 @@ object HomeAgentWatchdog {
         cancel(context)
         preferences(context).edit()
             .remove(KEY_LAST_HEARTBEAT_AT)
+            .remove(KEY_LAST_HEARTBEAT_RECEIVED_AT)
+            .remove(KEY_LAST_HEARTBEAT_RESULT)
+            .remove(KEY_LAST_FALLBACK_AT)
+            .remove(KEY_LAST_FALLBACK_REASON)
             .remove(KEY_LAST_HEARTBEAT_SESSION_ID)
             .remove(KEY_LAST_HEARTBEAT_SEQUENCE)
             .remove(KEY_LAST_HEARTBEAT_ID)
@@ -115,10 +127,21 @@ object HomeAgentWatchdog {
         }
 
         val prefs = preferences(appContext)
-        val accepted = acceptHeartbeat(prefs, heartbeat)
-        if (!accepted.accepted) return false
+        val receivedAt = System.currentTimeMillis()
+        val accepted = acceptHeartbeat(prefs, heartbeat, receivedAt)
+        if (!accepted.accepted) {
+            prefs.edit()
+                .putLong(KEY_LAST_HEARTBEAT_RECEIVED_AT, receivedAt)
+                .putString(KEY_LAST_HEARTBEAT_RESULT, "Отклонён: ${accepted.reason}")
+                .apply()
+            publishStatus(appContext)
+            return false
+        }
 
-        val editor = prefs.edit().putLong(KEY_LAST_HEARTBEAT_AT, accepted.sentAtMillis)
+        val editor = prefs.edit()
+            .putLong(KEY_LAST_HEARTBEAT_AT, accepted.sentAtMillis)
+            .putLong(KEY_LAST_HEARTBEAT_RECEIVED_AT, receivedAt)
+            .putString(KEY_LAST_HEARTBEAT_RESULT, accepted.reason)
         if (heartbeat.isVersion2) {
             editor
                 .putString(KEY_LAST_HEARTBEAT_SESSION_ID, heartbeat.sessionId)
@@ -163,8 +186,15 @@ object HomeAgentWatchdog {
         }
         val stale = System.currentTimeMillis() - referenceAt >= timeoutMillis(appContext)
         if (stale && !isFallbackActive(appContext)) {
+            val reason = if (lastHeartbeatAt == 0L) {
+                "Не получен первый heartbeat"
+            } else {
+                "Нет свежего heartbeat дольше заданного порога"
+            }
             preferences(appContext).edit()
                 .putBoolean(KEY_FALLBACK_ACTIVE, true)
+                .putLong(KEY_LAST_FALLBACK_AT, System.currentTimeMillis())
+                .putString(KEY_LAST_FALLBACK_REASON, reason)
                 .putInt(KEY_RECOVERY_HEARTBEATS, 0)
                 .apply()
             MonitoringController.startHomeAgentFallback(appContext, fallbackStrategy(appContext))
@@ -196,28 +226,36 @@ object HomeAgentWatchdog {
         )
     }
 
-    private fun acceptHeartbeat(prefs: android.content.SharedPreferences, heartbeat: Heartbeat): AcceptedHeartbeat {
-        val now = System.currentTimeMillis()
-        if (!heartbeat.isVersion2) return AcceptedHeartbeat(true, now)
+    private fun acceptHeartbeat(
+        prefs: android.content.SharedPreferences,
+        heartbeat: Heartbeat,
+        receivedAt: Long
+    ): AcceptedHeartbeat {
+        if (!heartbeat.isVersion2) return AcceptedHeartbeat(true, receivedAt, "Принят legacy heartbeat")
 
-        val sentAt = heartbeat.sentAtMillis ?: return AcceptedHeartbeat(false, 0L)
-        val sessionId = heartbeat.sessionId ?: return AcceptedHeartbeat(false, 0L)
-        val id = heartbeat.id ?: return AcceptedHeartbeat(false, 0L)
-        if (heartbeat.sequence < 1L) return AcceptedHeartbeat(false, 0L)
-        if (sentAt > now + MAX_CLOCK_SKEW_MILLIS) return AcceptedHeartbeat(false, 0L)
+        val sentAt = heartbeat.sentAtMillis ?: return AcceptedHeartbeat(false, 0L, "нет времени ПК")
+        val sessionId = heartbeat.sessionId ?: return AcceptedHeartbeat(false, 0L, "нет ID сессии")
+        val id = heartbeat.id ?: return AcceptedHeartbeat(false, 0L, "нет ID heartbeat")
+        if (heartbeat.sequence < 1L) return AcceptedHeartbeat(false, 0L, "некорректный номер")
+        if (sentAt > receivedAt + MAX_CLOCK_SKEW_MILLIS) return AcceptedHeartbeat(false, 0L, "время ПК слишком далеко в будущем")
         // A long-delayed old message must never make a stopped PC look healthy.
-        if (now - sentAt >= timeoutMillisFromPreferences(prefs)) return AcceptedHeartbeat(false, 0L)
+        if (receivedAt - sentAt >= timeoutMillisFromPreferences(prefs)) {
+            return AcceptedHeartbeat(false, 0L, "пульс слишком старый при доставке")
+        }
 
         val previousSentAt = prefs.getLong(KEY_LAST_HEARTBEAT_AT, 0L)
         val previousSessionId = prefs.getString(KEY_LAST_HEARTBEAT_SESSION_ID, null)
         val previousSequence = prefs.getLong(KEY_LAST_HEARTBEAT_SEQUENCE, 0L)
         val previousId = prefs.getString(KEY_LAST_HEARTBEAT_ID, null)
-        if (id == previousId) return AcceptedHeartbeat(false, 0L)
-        if (previousSessionId != null && sentAt < previousSentAt) return AcceptedHeartbeat(false, 0L)
-        if (sessionId == previousSessionId && heartbeat.sequence <= previousSequence) {
-            return AcceptedHeartbeat(false, 0L)
+        if (id == previousId) return AcceptedHeartbeat(false, 0L, "дубликат")
+        if (previousSessionId != null && sentAt < previousSentAt) {
+            return AcceptedHeartbeat(false, 0L, "старее уже принятого heartbeat")
         }
-        return AcceptedHeartbeat(true, sentAt)
+        if (sessionId == previousSessionId && heartbeat.sequence <= previousSequence) {
+            return AcceptedHeartbeat(false, 0L, "номер не новее предыдущего")
+        }
+        val deliveryDelay = ((receivedAt - sentAt).coerceAtLeast(0L) / 1_000L)
+        return AcceptedHeartbeat(true, sentAt, "Принят #${heartbeat.sequence}; доставка ${deliveryDelay} сек")
     }
 
     fun isFallbackActive(context: Context): Boolean = preferences(context)
@@ -225,6 +263,18 @@ object HomeAgentWatchdog {
 
     fun lastHeartbeatAt(context: Context): Long = preferences(context)
         .getLong(KEY_LAST_HEARTBEAT_AT, 0L)
+
+    fun lastHeartbeatReceivedAt(context: Context): Long = preferences(context)
+        .getLong(KEY_LAST_HEARTBEAT_RECEIVED_AT, 0L)
+
+    fun lastHeartbeatResult(context: Context): String? = preferences(context)
+        .getString(KEY_LAST_HEARTBEAT_RESULT, null)
+
+    fun lastFallbackAt(context: Context): Long = preferences(context)
+        .getLong(KEY_LAST_FALLBACK_AT, 0L)
+
+    fun lastFallbackReason(context: Context): String? = preferences(context)
+        .getString(KEY_LAST_FALLBACK_REASON, null)
 
     fun fallbackStrategy(context: Context): MonitoringStrategy = MonitoringStrategy.fromStoredValue(
         PreferenceManager.getDefaultSharedPreferences(context).getString(
@@ -269,7 +319,11 @@ object HomeAgentWatchdog {
         val isVersion2: Boolean get() = version != null && version >= 2
     }
 
-    private data class AcceptedHeartbeat(val accepted: Boolean, val sentAtMillis: Long)
+    private data class AcceptedHeartbeat(
+        val accepted: Boolean,
+        val sentAtMillis: Long,
+        val reason: String
+    )
 
     private fun preferences(context: Context) = context.applicationContext
         .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
