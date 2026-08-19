@@ -17,6 +17,7 @@ const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
 const HEARTBEAT_TTL_MS = 20 * 60 * 1000;
 const HEARTBEAT_COLLAPSE_KEY = "twitch_alarm_home_agent_health";
 const HEARTBEAT_PROTOCOL_VERSION = "2";
+const STREAM_EVENT_TTL_MS = 5 * 60 * 1000;
 const HEARTBEAT_STATE_KEY = "__homeAgentHeartbeat";
 
 async function readJson(file) {
@@ -131,12 +132,14 @@ async function sendHeartbeat(messaging, token, sessionId, sequence) {
 }
 
 async function sendAlarm(messaging, token, stream) {
-  const eventId = `${stream.login}:${stream.streamId || Date.now()}`;
-  await messaging.send({
+  const sentAt = Date.now();
+  const eventId = `${stream.login}:${stream.streamId || sentAt}`;
+  const messageId = await messaging.send({
     token,
     data: {
       type: "stream_online",
       event_id: eventId,
+      sent_at: String(sentAt),
       login: stream.login,
       display_name: stream.displayName,
       title: stream.title,
@@ -145,10 +148,11 @@ async function sendAlarm(messaging, token, stream) {
     },
     android: {
       priority: "high",
-      ttl: 60 * 1000
+      // A stream alarm remains useful after a short connectivity or Doze delay.
+      ttl: STREAM_EVENT_TTL_MS
     }
   });
-  console.log(`[${new Date().toISOString()}] FCM sent: ${stream.login}`);
+  console.log(`[${new Date(sentAt).toISOString()}] FCM sent: ${stream.login}; id=${messageId}; ttl=5m`);
 }
 
 async function main() {
