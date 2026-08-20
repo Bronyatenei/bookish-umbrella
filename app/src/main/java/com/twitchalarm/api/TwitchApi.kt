@@ -30,6 +30,7 @@ object TwitchApi {
         val login: String,
         val displayName: String,
         val isLive: Boolean,
+        val streamId: String? = null,
         val title: String = "",
         val viewerCount: Int = 0,
         val gameName: String = ""
@@ -87,6 +88,7 @@ object TwitchApi {
                 login       = login,
                 displayName = displayName,
                 isLive      = true,
+                streamId    = stream.optString("id", "").takeIf { it.isNotBlank() },
                 title       = stream.optString("title", ""),
                 viewerCount = stream.optInt("viewersCount", 0),
                 gameName    = stream.optJSONObject("game")?.optString("name", "") ?: ""
