@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -49,31 +50,40 @@ async function isAutoOpenEnabled() {
   }
 }
 
-/** Opens the system-default browser without waiting for it or affecting FCM delivery. */
+function findFirefoxExecutable() {
+  const candidates = [
+    path.join(process.env.ProgramFiles ?? "", "Mozilla Firefox", "firefox.exe"),
+    path.join(process.env["ProgramFiles(x86)"] ?? "", "Mozilla Firefox", "firefox.exe"),
+    path.join(process.env.LOCALAPPDATA ?? "", "Mozilla Firefox", "firefox.exe")
+  ].filter((candidate) => candidate.length > 0);
+  return candidates.find((candidate) => existsSync(candidate)) ?? null;
+}
+
+/** Opens a Twitch stream in Firefox directly, with a shell fallback for other browsers. */
 function openStreamInBrowser(stream) {
   const streamUrl = `https://www.twitch.tv/${encodeURIComponent(stream.login)}`;
-  // Use the same ShellExecute path as PowerShell Start-Process, which works with
-  // the user's registered browser (including Firefox) from an interactive task.
-  const launcher = spawn("powershell.exe", [
-    "-NoProfile",
-    "-NonInteractive",
-    "-WindowStyle", "Hidden",
-    "-Command", `Start-Process -FilePath '${streamUrl}'`
-  ], {
+  const firefoxPath = findFirefoxExecutable();
+  const command = firefoxPath ?? "powershell.exe";
+  const args = firefoxPath
+    ? ["-new-tab", streamUrl]
+    : ["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", `Start-Process -FilePath '${streamUrl}'`];
+  const launchMethod = firefoxPath ? `Firefox: ${firefoxPath}` : "Windows default-browser fallback";
+
+  const launcher = spawn(command, args, {
     detached: true,
     stdio: "ignore",
     windowsHide: true
   });
   launcher.on("error", (error) => {
-    console.error(`[${new Date().toISOString()}] browser open failed for ${stream.login}: ${describeError(error)}`);
+    console.error(`[${new Date().toISOString()}] browser open failed for ${stream.login} via ${launchMethod}: ${describeError(error)}`);
   });
   launcher.on("exit", (code) => {
     if (code !== 0) {
-      console.error(`[${new Date().toISOString()}] browser launcher exited with code ${code} for ${stream.login}`);
+      console.error(`[${new Date().toISOString()}] browser launcher exited with code ${code} for ${stream.login} via ${launchMethod}`);
     }
   });
   launcher.unref();
-  console.log(`[${new Date().toISOString()}] browser open requested: ${streamUrl}`);
+  console.log(`[${new Date().toISOString()}] browser open requested via ${launchMethod}: ${streamUrl}`);
 }
 
 function makeQuery(logins) {
