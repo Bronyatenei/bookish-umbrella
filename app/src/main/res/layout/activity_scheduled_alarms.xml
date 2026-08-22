@@ -18,17 +18,12 @@
             app:navigationIconTint="@color/text_primary"
             app:titleTextColor="@color/text_primary" />
 
-        <ScrollView
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
-            android:fillViewport="true">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
+            android:orientation="vertical"
+            android:padding="16dp">
 
                 <com.google.android.material.card.MaterialCardView
                     android:id="@+id/cardExactAlarmPermission"
@@ -143,13 +138,12 @@
                     android:textSize="14sp"
                     android:visibility="gone" />
 
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/recyclerAlarms"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:clipToPadding="false"
-                    android:nestedScrollingEnabled="false" />
-            </LinearLayout>
-        </ScrollView>
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/recyclerAlarms"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:clipToPadding="false" />
+        </LinearLayout>
     </LinearLayout>
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
