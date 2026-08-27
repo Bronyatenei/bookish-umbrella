@@ -30,7 +30,6 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="12dp"
-                    android:visibility="gone"
                     app:cardBackgroundColor="@color/input_background"
                     app:cardCornerRadius="16dp"
                     app:strokeColor="@color/twitch_purple_light"
@@ -43,18 +42,20 @@
                         android:padding="16dp">
 
                         <TextView
+                            android:id="@+id/tvExactAlarmStatus"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Разрешите точные будильники"
+                            android:text="Проверка доступа к точным будильникам…"
                             android:textColor="@color/text_primary"
                             android:textSize="16sp"
                             android:textStyle="bold" />
 
                         <TextView
+                            android:id="@+id/tvExactAlarmDescription"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="4dp"
-                            android:text="Так Android сможет разбудить телефон в точное время, даже когда приложение закрыто."
+                            android:text="Проверка системного доступа…"
                             android:textColor="@color/text_hint"
                             android:textSize="13sp" />
 

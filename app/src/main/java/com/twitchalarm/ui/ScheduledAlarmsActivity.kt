@@ -176,7 +176,26 @@ class ScheduledAlarmsActivity : AppCompatActivity() {
 
     private fun refreshExactAlarmAccess() {
         val granted = hasExactAlarmAccess()
-        binding.cardExactAlarmPermission.visibility = if (granted) View.GONE else View.VISIBLE
+        when {
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.S -> {
+                binding.tvExactAlarmStatus.text = "Точные будильники: отдельный доступ не нужен"
+                binding.tvExactAlarmDescription.text =
+                    "На этой версии Android будильники запускаются по системному расписанию без этого специального переключателя."
+                binding.btnGrantExactAlarm.visibility = View.GONE
+            }
+            granted -> {
+                binding.tvExactAlarmStatus.text = "Точные будильники: разрешены"
+                binding.tvExactAlarmDescription.text =
+                    "Android подтвердил доступ. Включённые будильники будут перепланированы на точное время."
+                binding.btnGrantExactAlarm.visibility = View.GONE
+            }
+            else -> {
+                binding.tvExactAlarmStatus.text = "Точные будильники: доступ не выдан"
+                binding.tvExactAlarmDescription.text =
+                    "Откройте системный доступ «Будильники и напоминания». Без него Android может отложить обычный будильник в режиме сна."
+                binding.btnGrantExactAlarm.visibility = View.VISIBLE
+            }
+        }
         if (granted) {
             lifecycleScope.launch(Dispatchers.IO) {
                 ScheduledAlarmScheduler.rescheduleAllEnabled(this@ScheduledAlarmsActivity)
