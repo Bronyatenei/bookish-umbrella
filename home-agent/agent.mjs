@@ -6,6 +6,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { initializeApp, cert, getApps } from "firebase-admin/app";
 import { getMessaging } from "firebase-admin/messaging";
+import { StreamRecorder, createRecordingOptions } from "./stream-recorder.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const configPath = path.resolve(process.argv[2] ?? path.join(__dirname, "config.json"));
@@ -215,24 +216,33 @@ async function main() {
   const firebaseApp = getApps()[0] ?? initializeApp({ credential: cert(serviceAccount) });
   const messaging = getMessaging(firebaseApp);
   const state = await readState();
+  const monitoredLogins = [...new Set(config.channels.map((x) => String(x).trim().toLowerCase()).filter(Boolean))];
+  const recordingOptions = createRecordingOptions(config, path.dirname(configPath), monitoredLogins);
+  const recorder = new StreamRecorder(recordingOptions);
   const intervalMs = Math.max(15, Number(config.pollIntervalSeconds || 60)) * 1000;
   const heartbeatSessionId = randomUUID();
 
-  console.log(`Home Agent started; checking ${config.channels.length} channel(s) every ${intervalMs / 1000}s.`);
+  console.log(`Home Agent started; checking ${monitoredLogins.length} channel(s) every ${intervalMs / 1000}s.`);
   console.log("The first successful poll only initializes state; alarms are sent on offline -> online transitions.");
   console.log("A health heartbeat is sent after successful checks at most once every 5 minutes.");
+  const recordingStartup = recorder.describeStartup();
+  if (recordingStartup) console.log(recordingStartup);
 
   let stopping = false;
-  const stop = () => { stopping = true; };
+  const stop = () => {
+    stopping = true;
+    recorder.stopAll();
+  };
   process.on("SIGINT", stop);
   process.on("SIGTERM", stop);
 
   while (!stopping) {
     try {
-      const results = await checkStreams(config.channels.map((x) => String(x).trim().toLowerCase()).filter(Boolean));
+      const results = await checkStreams(monitoredLogins);
       const autoOpenEnabled = await isAutoOpenEnabled();
       let pendingAlerts = activePendingAlerts(state, Date.now());
       for (const stream of results) {
+        recorder.observe(stream);
         const previous = state[stream.login];
         if (previous && !previous.isLive && stream.isLive) {
           const alert = makeStreamAlert(stream);

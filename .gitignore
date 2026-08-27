@@ -10,6 +10,7 @@ home-agent/service-account.json
 home-agent/config.json
 home-agent/state.json
 home-agent/auto-open.json
+home-agent/recordings/
 
 # IDE and OS files
 .idea/workspace.xml

@@ -4,5 +4,18 @@
   "pollIntervalSeconds": 60,
   "channels": [
     "example_channel"
-  ]
+  ],
+  "recordChannels": [
+    "example_channel"
+  ],
+  "recording": {
+    "outputDirectory": "./recordings",
+    "quality": "best",
+    "streamlinkPath": "streamlink",
+    "maxRestarts": 5,
+    "restartDelaySeconds": 20,
+    "streamSegmentAttempts": 5,
+    "playlistReloadAttempts": 5,
+    "streamTimeoutSeconds": 60
+  }
 }
