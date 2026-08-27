@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "start": "node agent.mjs",
-    "test:fcm": "node test-fcm.mjs"
+    "test:fcm": "node test-fcm.mjs",
+    "test": "node --test stream-recorder.test.mjs"
   },
   "dependencies": {
     "firebase-admin": "^13.4.0"
