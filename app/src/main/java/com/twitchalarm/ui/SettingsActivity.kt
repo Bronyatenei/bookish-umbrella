@@ -60,6 +60,7 @@ class SettingsActivity : AppCompatActivity() {
         const val KEY_MONITORING_STRATEGY = "monitoring_strategy"
         const val KEY_ALARM_PLAYLIST = "alarm_playlist_uris"
         const val KEY_ALARM_FADE_SECONDS = "alarm_fade_seconds"
+        const val KEY_STREAM_NOTIFICATION_ONLY = "stream_notification_only"
         const val KEY_HOME_AGENT_WATCHDOG_INTERVAL = "home_agent_watchdog_interval_minutes"
         const val KEY_HOME_AGENT_MISSED_HEARTBEATS = "home_agent_missed_heartbeats"
         const val KEY_HOME_AGENT_FALLBACK_STRATEGY = "home_agent_fallback_strategy"
@@ -117,6 +118,8 @@ class SettingsActivity : AppCompatActivity() {
                 MonitoringStrategy.HOME_AGENT -> R.id.rbHomeAgent
             }
         )
+        binding.switchStreamNotificationOnly.isChecked =
+            prefs.getBoolean(KEY_STREAM_NOTIFICATION_ONLY, false)
 
         val watchdogMinutes = HomeAgentWatchdog.intervalMinutes(this)
         binding.seekBarHomeAgentWatchdog.progress = watchdogProgress(watchdogMinutes)
