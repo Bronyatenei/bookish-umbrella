@@ -13,12 +13,25 @@ android {
         applicationId "com.twitchalarm"
         minSdk 26
         targetSdk 34
-        versionCode 1
-        versionName "1.0"
+        versionCode 3
+        versionName "0.1.3"
     }
 
+    signingConfigs {
+        release {
+            def signingStoreFile = System.getenv("TWITCH_ALARM_KEYSTORE")
+            def signingStorePassword = System.getenv("TWITCH_ALARM_STORE_PASSWORD")
+            if (signingStoreFile && signingStorePassword) {
+                storeFile file(signingStoreFile)
+                storePassword signingStorePassword
+                keyAlias System.getenv("TWITCH_ALARM_KEY_ALIAS") ?: "twitch-alarm-release"
+                keyPassword System.getenv("TWITCH_ALARM_KEY_PASSWORD") ?: signingStorePassword
+            }
+        }
+    }
     buildTypes {
         release {
+            signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
