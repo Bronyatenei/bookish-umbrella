@@ -65,6 +65,8 @@ class MainActivity : AppCompatActivity() {
         binding.bottomNavigation.setOnItemSelectedListener { item ->
             if (item.itemId == R.id.nav_alarms) {
                 startActivity(Intent(this, ScheduledAlarmsActivity::class.java))
+                finish()
+                overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
                 true
             } else true
         }
@@ -106,10 +108,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean = when (item.itemId) {
-        R.id.action_scheduled_alarms -> {
-            startActivity(Intent(this, ScheduledAlarmsActivity::class.java))
-            true
-        }
         R.id.action_settings -> {
             startActivity(Intent(this, SettingsActivity::class.java))
             true
