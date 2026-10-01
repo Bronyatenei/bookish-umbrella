@@ -62,6 +62,13 @@ class MainActivity : AppCompatActivity() {
         database = AppDatabase.getInstance(this)
 
         setupToolbar()
+        binding.bottomNavigation.setOnItemSelectedListener { item ->
+            if (item.itemId == R.id.nav_alarms) {
+                startActivity(Intent(this, ScheduledAlarmsActivity::class.java))
+                true
+            } else true
+        }
+        binding.bottomNavigation.selectedItemId = R.id.nav_twitch
         setupRecyclerView()
         setupAddButton()
         setupSwipeToDelete()
