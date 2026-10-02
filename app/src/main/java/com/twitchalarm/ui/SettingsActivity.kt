@@ -79,6 +79,24 @@ class SettingsActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         setupToolbar()
+        binding.bottomNavigation.setOnItemSelectedListener { item ->
+            when (item.itemId) {
+                R.id.nav_twitch -> {
+                    startActivity(Intent(this, MainActivity::class.java))
+                    finish()
+                    overridePendingTransition(R.anim.slide_in_left, R.anim.slide_out_right)
+                    true
+                }
+                R.id.nav_alarms -> {
+                    startActivity(Intent(this, ScheduledAlarmsActivity::class.java))
+                    finish()
+                    overridePendingTransition(R.anim.slide_in_left, R.anim.slide_out_right)
+                    true
+                }
+                else -> true
+            }
+        }
+        binding.bottomNavigation.selectedItemId = R.id.nav_settings
         loadSettings()
         setupListeners()
         refreshFcmToken()
@@ -91,7 +109,7 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun setupToolbar() {
         setSupportActionBar(binding.toolbar)
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        supportActionBar?.setDisplayHomeAsUpEnabled(false)
         supportActionBar?.title = "Настройки"
     }
 

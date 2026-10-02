@@ -48,7 +48,7 @@ class ScheduledAlarmsActivity : AppCompatActivity() {
         database = AppDatabase.getInstance(this)
 
         setSupportActionBar(binding.toolbar)
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        supportActionBar?.setDisplayHomeAsUpEnabled(false)
         supportActionBar?.title = "Обычные будильники"
 
         adapter = ScheduledAlarmAdapter(
@@ -64,6 +64,11 @@ class ScheduledAlarmsActivity : AppCompatActivity() {
                 startActivity(Intent(this, MainActivity::class.java))
                 finish()
                 overridePendingTransition(R.anim.slide_in_left, R.anim.slide_out_right)
+                true
+            } else if (item.itemId == R.id.nav_settings) {
+                startActivity(Intent(this, SettingsActivity::class.java))
+                finish()
+                overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
                 true
             } else true
         }
