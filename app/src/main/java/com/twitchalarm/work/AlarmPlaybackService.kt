@@ -195,8 +195,11 @@ class AlarmPlaybackService : Service() {
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setOngoing(true)
+            // The alarm must be dismissible from the notification shade. The
+            // delete intent below stops the foreground service as well.
+            .setOngoing(false)
             .setAutoCancel(false)
+            .setDeleteIntent(stopIntent)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Отключить", stopIntent)
 
         val notification: Notification = builder.build()
