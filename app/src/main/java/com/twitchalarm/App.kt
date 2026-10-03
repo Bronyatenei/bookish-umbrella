@@ -11,6 +11,7 @@ class App : Application(), Configuration.Provider {
 
     companion object {
         const val CHANNEL_ALARM   = "twitch_alarm"
+        const val CHANNEL_STREAM_NOTIFICATION = "twitch_stream_notification"
         const val CHANNEL_SERVICE = "twitch_service"
     }
 
@@ -34,6 +35,17 @@ class App : Application(), Configuration.Provider {
             setShowBadge(true)
         }
 
+        val streamNotificationChannel = NotificationChannel(
+            CHANNEL_STREAM_NOTIFICATION,
+            "Уведомления о стримах",
+            NotificationManager.IMPORTANCE_DEFAULT
+        ).apply {
+            description = "Тихое уведомление когда начинается отслеживаемый стрим"
+            enableVibration(false)
+            setSound(null, null)
+            setShowBadge(true)
+        }
+
         // Low-priority channel for background worker
         val serviceChannel = NotificationChannel(
             CHANNEL_SERVICE,
@@ -43,7 +55,7 @@ class App : Application(), Configuration.Provider {
             description = "Фоновая проверка статуса стримеров"
         }
 
-        nm.createNotificationChannels(listOf(alarmChannel, serviceChannel))
+        nm.createNotificationChannels(listOf(alarmChannel, streamNotificationChannel, serviceChannel))
     }
 
     override val workManagerConfiguration: Configuration

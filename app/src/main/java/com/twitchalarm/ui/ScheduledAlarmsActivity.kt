@@ -5,12 +5,15 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.view.View
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.twitchalarm.R
 import com.twitchalarm.data.AppDatabase
 import com.twitchalarm.data.ScheduledAlarm
@@ -26,6 +29,17 @@ class ScheduledAlarmsActivity : AppCompatActivity() {
     private lateinit var binding: ActivityScheduledAlarmsBinding
     private lateinit var database: AppDatabase
     private lateinit var adapter: ScheduledAlarmAdapter
+    private var currentAlarms: List<ScheduledAlarm> = emptyList()
+    private var pendingScrollRestore: ScrollRestore? = null
+    private val countdownHandler = Handler(Looper.getMainLooper())
+    private val countdownUpdater = object : Runnable {
+        override fun run() {
+            updateNextAlarm(currentAlarms)
+            countdownHandler.postDelayed(this, 30_000L)
+        }
+    }
+
+    private data class ScrollRestore(val alarmId: Long, val topOffset: Int)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -34,7 +48,7 @@ class ScheduledAlarmsActivity : AppCompatActivity() {
         database = AppDatabase.getInstance(this)
 
         setSupportActionBar(binding.toolbar)
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        supportActionBar?.setDisplayHomeAsUpEnabled(false)
         supportActionBar?.title = "Обычные будильники"
 
         adapter = ScheduledAlarmAdapter(
@@ -45,6 +59,20 @@ class ScheduledAlarmsActivity : AppCompatActivity() {
         binding.recyclerAlarms.layoutManager = LinearLayoutManager(this)
         binding.recyclerAlarms.adapter = adapter
         binding.btnAddTimeAlarm.setOnClickListener { showEditDialog(null) }
+        binding.bottomNavigation.setOnItemSelectedListener { item ->
+            if (item.itemId == R.id.nav_twitch) {
+                startActivity(Intent(this, MainActivity::class.java))
+                finish()
+                overridePendingTransition(R.anim.slide_in_left, R.anim.slide_out_right)
+                true
+            } else if (item.itemId == R.id.nav_settings) {
+                startActivity(Intent(this, SettingsActivity::class.java))
+                finish()
+                overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
+                true
+            } else true
+        }
+        binding.bottomNavigation.selectedItemId = R.id.nav_alarms
         binding.btnGrantExactAlarm.setOnClickListener { requestExactAlarmAccess() }
 
         observeAlarms()
@@ -53,6 +81,13 @@ class ScheduledAlarmsActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         refreshExactAlarmAccess()
+        countdownHandler.removeCallbacks(countdownUpdater)
+        countdownHandler.post(countdownUpdater)
+    }
+
+    override fun onPause() {
+        countdownHandler.removeCallbacks(countdownUpdater)
+        super.onPause()
     }
 
     override fun onSupportNavigateUp(): Boolean {
@@ -63,7 +98,18 @@ class ScheduledAlarmsActivity : AppCompatActivity() {
     private fun observeAlarms() {
         lifecycleScope.launch {
             database.scheduledAlarmDao().getAllFlow().collect { alarms ->
-                adapter.submitList(alarms)
+                currentAlarms = alarms
+                val restore = pendingScrollRestore
+                pendingScrollRestore = null
+                adapter.submitList(alarms) {
+                    if (restore != null) {
+                        val position = alarms.indexOfFirst { it.id == restore.alarmId }
+                        if (position >= 0) {
+                            (binding.recyclerAlarms.layoutManager as? LinearLayoutManager)
+                                ?.scrollToPositionWithOffset(position, restore.topOffset)
+                        }
+                    }
+                }
                 binding.tvEmptyAlarms.visibility = if (alarms.isEmpty()) View.VISIBLE else View.GONE
                 updateNextAlarm(alarms)
             }
@@ -87,8 +133,32 @@ class ScheduledAlarmsActivity : AppCompatActivity() {
                 else -> ScheduledAlarmDays.ordered.firstOrNull { it.calendarDay == calendar.get(Calendar.DAY_OF_WEEK) }
                     ?.fullName ?: "Следующий"
             }
-            "$dayPrefix в ${String.format("%02d:%02d", next.first.hour, next.first.minute)}"
+            "$dayPrefix в ${String.format("%02d:%02d", next.first.hour, next.first.minute)}, ${countdownText(next.second - System.currentTimeMillis())}"
         }
+    }
+
+    private fun countdownText(millis: Long): String {
+        val totalMinutes = (millis.coerceAtLeast(0L) / 60_000L)
+        if (totalMinutes < 1) return "менее минуты"
+        val hours = totalMinutes / 60
+        val minutes = totalMinutes % 60
+        return when {
+            hours > 0 && minutes > 0 -> "через $hours ${hourWord(hours)} $minutes ${minuteWord(minutes)}"
+            hours > 0 -> "через $hours ${hourWord(hours)}"
+            else -> "через $minutes ${minuteWord(minutes)}"
+        }
+    }
+
+    private fun hourWord(value: Long): String = when {
+        value % 10 == 1L && value % 100 != 11L -> "час"
+        value % 10 in 2..4 && value % 100 !in 12..14 -> "часа"
+        else -> "часов"
+    }
+
+    private fun minuteWord(value: Long): String = when {
+        value % 10 == 1L && value % 100 != 11L -> "минута"
+        value % 10 in 2..4 && value % 100 !in 12..14 -> "минуты"
+        else -> "минут"
     }
 
     private fun showEditDialog(existing: ScheduledAlarm?) {
@@ -152,12 +222,30 @@ class ScheduledAlarmsActivity : AppCompatActivity() {
     }
 
     private fun updateEnabled(alarm: ScheduledAlarm, enabled: Boolean) {
+        if (!enabled) captureScrollBeforeDisable(alarm)
         lifecycleScope.launch(Dispatchers.IO) {
             val updated = alarm.copy(enabled = enabled)
             database.scheduledAlarmDao().update(updated)
             if (enabled) ScheduledAlarmScheduler.schedule(this@ScheduledAlarmsActivity, updated)
             else ScheduledAlarmScheduler.cancel(this@ScheduledAlarmsActivity, alarm.id)
         }
+    }
+
+    private fun captureScrollBeforeDisable(disablingAlarm: ScheduledAlarm) {
+        val layoutManager = binding.recyclerAlarms.layoutManager as? LinearLayoutManager ?: return
+        val firstPosition = layoutManager.findFirstVisibleItemPosition()
+        if (firstPosition == RecyclerView.NO_POSITION) return
+        val anchorPosition = if (currentAlarms.getOrNull(firstPosition)?.id == disablingAlarm.id) {
+            firstPosition + 1
+        } else {
+            firstPosition
+        }
+        val anchor = currentAlarms.getOrNull(anchorPosition) ?: return
+        pendingScrollRestore = ScrollRestore(
+            alarmId = anchor.id,
+            topOffset = layoutManager.findViewByPosition(anchorPosition)?.top
+                ?: binding.recyclerAlarms.paddingTop
+        )
     }
 
     private fun confirmDelete(alarm: ScheduledAlarm) {

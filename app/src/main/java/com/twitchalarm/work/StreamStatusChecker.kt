@@ -41,9 +41,10 @@ object StreamStatusChecker {
             if (!previous.isLive && info.isLive &&
                 StreamAlertDeduplicator.shouldTrigger(appContext, info.login, info.streamId)
             ) {
-                AlarmPlaybackService.start(
+                StreamAlertDispatcher.dispatch(
                     context = appContext,
                     displayName = info.displayName,
+                    login = info.login,
                     title = info.title,
                     game = info.gameName,
                     viewers = info.viewerCount

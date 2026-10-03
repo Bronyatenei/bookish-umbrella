@@ -99,14 +99,15 @@ class HomeAgentMessagingService : FirebaseMessagingService() {
             ?.removePrefix("$login:")
             ?.takeIf { it.isNotBlank() }
         if (StreamAlertDeduplicator.shouldTrigger(this, login, streamId)) {
-            Log.i(TAG, "Starting stream alarm for $login from ${if (data.containsKey(KEY_RELAYED)) "heartbeat relay" else "direct FCM"}")
-            AlarmPlaybackService.start(
+            StreamAlertDispatcher.dispatch(
                 context = this,
                 displayName = displayName,
+                login = login,
                 title = title,
                 game = game,
                 viewers = viewers
             )
+            Log.i(TAG, "Dispatched stream notification/alarm for $login from ${if (data.containsKey(KEY_RELAYED)) "heartbeat relay" else "direct FCM"}")
         }
     }
 
