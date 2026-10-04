@@ -10,8 +10,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.view.Menu
-import android.view.MenuItem
 import android.view.View
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -62,6 +60,24 @@ class MainActivity : AppCompatActivity() {
         database = AppDatabase.getInstance(this)
 
         setupToolbar()
+        binding.bottomNavigation.setOnItemSelectedListener { item ->
+            when (item.itemId) {
+                R.id.nav_alarms -> {
+                    startActivity(Intent(this, ScheduledAlarmsActivity::class.java))
+                    finish()
+                    overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
+                    true
+                }
+                R.id.nav_settings -> {
+                    startActivity(Intent(this, SettingsActivity::class.java))
+                    finish()
+                    overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
+                    true
+                }
+                else -> true
+            }
+        }
+        binding.bottomNavigation.selectedItemId = R.id.nav_twitch
         setupRecyclerView()
         setupAddButton()
         setupSwipeToDelete()
@@ -91,23 +107,6 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         refreshActiveStrategyIndicator()
-    }
-
-    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
-        menuInflater.inflate(R.menu.main_menu, menu)
-        return true
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean = when (item.itemId) {
-        R.id.action_scheduled_alarms -> {
-            startActivity(Intent(this, ScheduledAlarmsActivity::class.java))
-            true
-        }
-        R.id.action_settings -> {
-            startActivity(Intent(this, SettingsActivity::class.java))
-            true
-        }
-        else -> super.onOptionsItemSelected(item)
     }
 
     private fun setupToolbar() {
