@@ -154,6 +154,13 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun setupListeners() {
+        binding.switchStreamNotificationOnly.setOnCheckedChangeListener { _, checked ->
+            PreferenceManager.getDefaultSharedPreferences(this@SettingsActivity)
+                .edit()
+                .putBoolean(KEY_STREAM_NOTIFICATION_ONLY, checked)
+                .apply()
+        }
+
         binding.seekBarInterval.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 val minutes = progress + 1
