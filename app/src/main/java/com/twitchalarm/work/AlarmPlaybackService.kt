@@ -197,6 +197,10 @@ class AlarmPlaybackService : Service() {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOngoing(true)
             .setAutoCancel(false)
+            // Some Android skins allow dismissing even an ongoing foreground notification.
+            // Treat that gesture exactly like the explicit stop action, so an alarm never
+            // keeps playing without a visible way to stop it.
+            .setDeleteIntent(stopIntent)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Отключить", stopIntent)
 
         val notification: Notification = builder.build()
