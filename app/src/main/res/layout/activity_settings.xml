@@ -215,6 +215,19 @@
                             android:text="Это отображаемое имя для синхронизации, а не идентификатор безопасности."
                             android:textSize="12sp"
                             android:textColor="@color/text_hint"/>
+                        <Button
+                            android:id="@+id/btnClearServerWatchlist"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="32dp"
+                            android:layout_marginTop="8dp"
+                            android:text="Очистить список на сервере" />
+                        <Button
+                            android:id="@+id/btnDeleteServerProfile"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="32dp"
+                            android:text="Удалить серверный профиль" />
 
                         <com.google.android.material.switchmaterial.SwitchMaterial
                             android:id="@+id/switchServerFallbackEnabled"

@@ -23,6 +23,45 @@ object RelayApi {
     private val client = OkHttpClient()
     private val jsonType = "application/json; charset=utf-8".toMediaType()
 
+    private suspend fun firebaseBearerToken(): String? {
+        val auth = FirebaseAuth.getInstance()
+        val user = auth.currentUser ?: Tasks.await(auth.signInAnonymously()).user
+            ?: error("Firebase anonymous sign-in returned no user")
+        return Tasks.await(user.getIdToken(false))?.token
+    }
+    suspend fun clearWatchlist(context: Context): Boolean {
+        val appContext = context.applicationContext
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val prefs = PreferenceManager.getDefaultSharedPreferences(appContext)
+                val displayName = prefs.getString(SettingsActivity.KEY_SERVER_DISPLAY_NAME, "")?.trim().orEmpty()
+                val token = firebaseBearerToken()
+                val fcmToken = FcmTokenStore.get(appContext)
+                if (displayName.isEmpty() || displayName.length > 40 || token.isNullOrBlank() || fcmToken.isNullOrBlank()) return@runCatching false
+                val payload = JSONObject().apply {
+                    put("displayName", displayName)
+                    put("fcmToken", fcmToken)
+                    put("channels", JSONArray())
+                }
+                val request = Request.Builder().url(WATCHLIST_URL)
+                    .header("Authorization", "Bearer $token")
+                    .post(payload.toString().toRequestBody(jsonType)).build()
+                client.newCall(request).execute().use { it.isSuccessful }
+            }.onFailure { Log.e(TAG, "Watchlist clear failed", it) }.getOrDefault(false)
+        }
+    }
+    suspend fun deleteServerProfile(context: Context): Boolean {
+        val appContext = context.applicationContext
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val token = firebaseBearerToken()
+                if (token.isNullOrBlank()) return@runCatching false
+                val request = Request.Builder().url("$WATCHLIST_URL/self")
+                    .header("Authorization", "Bearer $token").delete().build()
+                client.newCall(request).execute().use { it.isSuccessful }
+            }.onFailure { Log.e(TAG, "Server profile deletion failed", it) }.getOrDefault(false)
+        }
+    }
     suspend fun syncWatchlist(context: Context) {
         val appContext = context.applicationContext
         runCatching {
@@ -34,10 +73,7 @@ object RelayApi {
                 Log.e(TAG, "Watchlist sync skipped: invalid server display name")
                 return@runCatching
             }
-            val auth = FirebaseAuth.getInstance()
-            val user = auth.currentUser ?: Tasks.await(auth.signInAnonymously()).user
-                ?: error("Firebase anonymous sign-in returned no user")
-            val token = Tasks.await(user.getIdToken(false))?.token
+            val token = firebaseBearerToken()
             if (token.isNullOrBlank()) {
                 Log.e(TAG, "Watchlist sync skipped: Firebase ID token unavailable")
                 return@runCatching

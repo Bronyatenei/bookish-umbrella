@@ -16,6 +16,7 @@ import android.widget.SeekBar
 import android.widget.Toast
 import androidx.core.widget.doAfterTextChanged
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
 import com.google.firebase.messaging.FirebaseMessaging
@@ -23,6 +24,7 @@ import com.twitchalarm.R
 import com.twitchalarm.databinding.ActivitySettingsBinding
 import com.twitchalarm.work.AlarmSoundPreferences
 import com.twitchalarm.work.MonitoringController
+import com.twitchalarm.work.RelayApi
 import com.twitchalarm.work.FcmTokenStore
 import com.twitchalarm.work.MonitoringStrategy
 import com.twitchalarm.work.HomeAgentWatchdog
@@ -30,6 +32,8 @@ import com.twitchalarm.work.ServerWatchdog
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 
 class SettingsActivity : AppCompatActivity() {
 
@@ -298,6 +302,34 @@ class SettingsActivity : AppCompatActivity() {
         binding.btnChooseTracks.setOnClickListener { playlistPicker.launch(arrayOf("audio/*")) }
         binding.btnClearTracks.setOnClickListener { clearPlaylist() }
         binding.btnCopyFcmToken.setOnClickListener { copyFcmToken() }
+        binding.btnClearServerWatchlist.setOnClickListener {
+            lifecycleScope.launch {
+                val ok = RelayApi.clearWatchlist(this@SettingsActivity)
+                Toast.makeText(this@SettingsActivity, if (ok) "Список на сервере очищен" else "Не удалось очистить список на сервере", Toast.LENGTH_SHORT).show()
+            }
+        }
+        binding.btnDeleteServerProfile.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle("Удалить серверный профиль?")
+                .setMessage("Будут удалены серверные каналы, устройство и профиль Firebase. Обычные будильники не изменятся.")
+                .setPositiveButton("Удалить") { _, _ ->
+                    lifecycleScope.launch {
+                        val ok = RelayApi.deleteServerProfile(this@SettingsActivity)
+                        if (ok) {
+                            PreferenceManager.getDefaultSharedPreferences(this@SettingsActivity).edit()
+                                .remove(KEY_SERVER_DISPLAY_NAME)
+                                .putString(KEY_MONITORING_STRATEGY, MonitoringStrategy.RELIABLE.storedValue)
+                                .apply()
+                            binding.etServerDisplayName.setText("")
+                            binding.rgMonitoringStrategy.check(R.id.rbReliable)
+                            MonitoringController.reconfigure(this@SettingsActivity)
+                        }
+                        Toast.makeText(this@SettingsActivity, if (ok) "Серверный профиль удалён" else "Не удалось удалить серверный профиль", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                .setNegativeButton("Отмена", null)
+                .show()
+        }
     }
 
     private fun refreshFcmToken() {

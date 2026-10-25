@@ -137,6 +137,9 @@ class MainActivity : AppCompatActivity() {
                 MonitoringController.start(this@MainActivity)
             } else if (database.streamerDao().getEnabled().isEmpty()) {
                 MonitoringController.stop(this@MainActivity)
+                if (MonitoringController.selectedStrategy(this@MainActivity) == MonitoringStrategy.SERVER) {
+                    MonitoringController.syncServerWatchlist(this@MainActivity)
+                }
             }
         }
     }
@@ -151,6 +154,9 @@ class MainActivity : AppCompatActivity() {
                     MonitoringController.start(this@MainActivity)
                 } else {
                     MonitoringController.stop(this@MainActivity)
+                    if (MonitoringController.selectedStrategy(this@MainActivity) == MonitoringStrategy.SERVER) {
+                        MonitoringController.syncServerWatchlist(this@MainActivity)
+                    }
                 }
             }
         }
@@ -247,6 +253,9 @@ class MainActivity : AppCompatActivity() {
                     database.streamerDao().delete(streamer)
                     if (database.streamerDao().getEnabled().isEmpty()) {
                         MonitoringController.stop(this@MainActivity)
+                        if (MonitoringController.selectedStrategy(this@MainActivity) == MonitoringStrategy.SERVER) {
+                            MonitoringController.syncServerWatchlist(this@MainActivity)
+                        }
                     }
                 }
             }
