@@ -69,7 +69,8 @@ dependencies {
     // Preferences (для настроек)
     implementation 'androidx.preference:preference-ktx:1.2.1'
 
-    // Firebase Cloud Messaging
+    // Firebase Cloud Messaging and anonymous auth
     implementation platform('com.google.firebase:firebase-bom:34.1.0')
+    implementation 'com.google.firebase:firebase-auth'
     implementation 'com.google.firebase:firebase-messaging'
 }

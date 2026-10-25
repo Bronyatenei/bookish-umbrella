@@ -87,6 +87,11 @@
             android:name=".work.HomeAgentWatchdogReceiver"
             android:exported="false" />
 
+        <!-- Relay health watchdog; enabled only with the SERVER fallback switch. -->
+        <receiver
+            android:name=".work.ServerWatchdogReceiver"
+            android:exported="false" />
+
         <!-- Exact and snoozed ordinary clock alarms. -->
         <receiver
             android:name=".work.ScheduledAlarmReceiver"

@@ -26,6 +26,7 @@ import com.twitchalarm.work.MonitoringController
 import com.twitchalarm.work.FcmTokenStore
 import com.twitchalarm.work.MonitoringStrategy
 import com.twitchalarm.work.HomeAgentWatchdog
+import com.twitchalarm.work.ServerWatchdog
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -66,6 +67,8 @@ class SettingsActivity : AppCompatActivity() {
         const val KEY_HOME_AGENT_AUTO_RETURN = "home_agent_auto_return"
         const val KEY_HOME_AGENT_FALLBACK_ENABLED = "home_agent_fallback_enabled"
         const val KEY_HOME_AGENT_PARALLEL_BACKUP = "home_agent_parallel_backup"
+        const val KEY_SERVER_FALLBACK_ENABLED = "server_fallback_enabled"
+        const val KEY_SERVER_DISPLAY_NAME = "server_display_name"
         const val DEFAULT_INTERVAL = 5
         const val DEFAULT_VOLUME = 100
         const val DEFAULT_FADE_SECONDS = 30
@@ -115,6 +118,7 @@ class SettingsActivity : AppCompatActivity() {
                 MonitoringStrategy.RELIABLE -> R.id.rbReliable
                 MonitoringStrategy.ECONOMY -> R.id.rbEconomy
                 MonitoringStrategy.HOME_AGENT -> R.id.rbHomeAgent
+                MonitoringStrategy.SERVER -> R.id.rbServer
             }
         )
 
@@ -128,6 +132,8 @@ class SettingsActivity : AppCompatActivity() {
         binding.switchHomeAgentAutoReturn.isChecked = HomeAgentWatchdog.autoReturnEnabled(this)
         binding.switchHomeAgentFallbackEnabled.isChecked = HomeAgentWatchdog.fallbackEnabled(this)
         binding.switchHomeAgentParallelBackup.isChecked = HomeAgentWatchdog.parallelBackupEnabled(this)
+        binding.switchServerFallbackEnabled.isChecked = ServerWatchdog.fallbackEnabled(this)
+        binding.etServerDisplayName.setText(prefs.getString(KEY_SERVER_DISPLAY_NAME, ""))
         updateHomeAgentControls(strategy)
         updatePlaylistSummary()
     }
@@ -156,6 +162,7 @@ class SettingsActivity : AppCompatActivity() {
             val strategy = when (checkedId) {
                 R.id.rbEconomy -> MonitoringStrategy.ECONOMY
                 R.id.rbHomeAgent -> MonitoringStrategy.HOME_AGENT
+                R.id.rbServer -> MonitoringStrategy.SERVER
                 else -> MonitoringStrategy.RELIABLE
             }
             PreferenceManager.getDefaultSharedPreferences(this)
@@ -164,6 +171,21 @@ class SettingsActivity : AppCompatActivity() {
                 .apply()
             updateHomeAgentControls(strategy)
             MonitoringController.reconfigure(this)
+        }
+
+        binding.switchServerFallbackEnabled.setOnCheckedChangeListener { _, checked ->
+            PreferenceManager.getDefaultSharedPreferences(this)
+                .edit().putBoolean(KEY_SERVER_FALLBACK_ENABLED, checked).apply()
+            if (selectedStrategy() == MonitoringStrategy.SERVER) {
+                ServerWatchdog.setFallbackEnabled(this, checked)
+            }
+            updateHomeAgentControls()
+        }
+
+        binding.etServerDisplayName.doAfterTextChanged { text ->
+            PreferenceManager.getDefaultSharedPreferences(this)
+                .edit().putString(KEY_SERVER_DISPLAY_NAME, text?.toString()?.trim().orEmpty()).apply()
+            if (selectedStrategy() == MonitoringStrategy.SERVER) MonitoringController.syncServerWatchlist(this)
         }
 
         binding.seekBarHomeAgentWatchdog.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -323,6 +345,7 @@ class SettingsActivity : AppCompatActivity() {
             "Используется в режимах Стабильность и Экономия"
         }
         binding.homeAgentSettingsContainer.visibility = if (homeAgentSelected) View.VISIBLE else View.GONE
+        binding.switchServerFallbackEnabled.isEnabled = strategy == MonitoringStrategy.SERVER
         binding.etMissedHeartbeats.isEnabled = fallbackEnabled
         binding.spinnerHomeAgentFallback.isEnabled = fallbackEnabled
         binding.switchHomeAgentAutoReturn.isEnabled = fallbackEnabled

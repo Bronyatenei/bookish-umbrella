@@ -5,12 +5,14 @@ package com.twitchalarm.work
  *
  * RELIABLE удерживает foreground-службу активной, пока включён хотя бы один канал.
  * ECONOMY завершает каждую проверку и планирует только одно следующее пробуждение.
- * HOME_AGENT не выполняет сетевые проверки на телефоне и ждёт FCM-события от домашнего агента.
+ * HOME_AGENT ждёт FCM-события от домашнего агента.
+ * SERVER регистрирует watchlist в relay и ждёт relay-события через FCM.
  */
 enum class MonitoringStrategy(val storedValue: String) {
     RELIABLE("reliable"),
     ECONOMY("economy"),
-    HOME_AGENT("home_agent");
+    HOME_AGENT("home_agent"),
+    SERVER("server");
 
     companion object {
         fun fromStoredValue(value: String?): MonitoringStrategy = values().firstOrNull {
