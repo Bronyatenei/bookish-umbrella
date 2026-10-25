@@ -13,8 +13,8 @@ android {
         applicationId "com.twitchalarm"
         minSdk 26
         targetSdk 34
-        versionCode 6
-        versionName "0.1.6-debug"
+        versionCode 2
+        versionName "0.1.2"
     }
 
     signingConfigs {
