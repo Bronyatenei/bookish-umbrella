@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ScheduledAlarmDao {
-    @Query("SELECT * FROM scheduled_alarms ORDER BY hour ASC, minute ASC, id ASC")
+    @Query("SELECT * FROM scheduled_alarms ORDER BY enabled DESC, hour ASC, minute ASC, id ASC")
     fun getAllFlow(): Flow<List<ScheduledAlarm>>
 
     @Query("SELECT * FROM scheduled_alarms WHERE enabled = 1")
