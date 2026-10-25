@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/nav_twitch"
+        android:icon="@drawable/ic_twitch"
+        android:title="Twitch" />
+    <item
+        android:id="@+id/nav_alarms"
+        android:icon="@drawable/ic_alarm_clock"
+        android:title="Будильники" />
+    <item
+        android:id="@+id/nav_settings"
+        android:icon="@drawable/ic_settings"
+        android:title="Настройки" />
+</menu>

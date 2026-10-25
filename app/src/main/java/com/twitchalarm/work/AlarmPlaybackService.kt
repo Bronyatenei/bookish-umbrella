@@ -195,7 +195,9 @@ class AlarmPlaybackService : Service() {
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setOngoing(true)
+            // The alarm must be dismissible from the notification shade. The
+            // delete intent below stops the foreground service as well.
+            .setOngoing(false)
             .setAutoCancel(false)
             // Some Android skins allow dismissing even an ongoing foreground notification.
             // Treat that gesture exactly like the explicit stop action, so an alarm never
