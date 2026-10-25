@@ -29,6 +29,7 @@ import com.twitchalarm.work.AlarmPlaybackService
 import com.twitchalarm.work.HomeAgentWatchdog
 import com.twitchalarm.work.MonitoringController
 import com.twitchalarm.work.MonitoringStrategy
+import com.twitchalarm.work.ServerWatchdog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -135,6 +136,9 @@ class MainActivity : AppCompatActivity() {
                 MonitoringController.start(this@MainActivity)
             } else if (database.streamerDao().getEnabled().isEmpty()) {
                 MonitoringController.stop(this@MainActivity)
+                if (MonitoringController.selectedStrategy(this@MainActivity) == MonitoringStrategy.SERVER) {
+                    MonitoringController.syncServerWatchlist(this@MainActivity)
+                }
             }
         }
     }
@@ -149,6 +153,9 @@ class MainActivity : AppCompatActivity() {
                     MonitoringController.start(this@MainActivity)
                 } else {
                     MonitoringController.stop(this@MainActivity)
+                    if (MonitoringController.selectedStrategy(this@MainActivity) == MonitoringStrategy.SERVER) {
+                        MonitoringController.syncServerWatchlist(this@MainActivity)
+                    }
                 }
             }
         }
@@ -245,6 +252,9 @@ class MainActivity : AppCompatActivity() {
                     database.streamerDao().delete(streamer)
                     if (database.streamerDao().getEnabled().isEmpty()) {
                         MonitoringController.stop(this@MainActivity)
+                        if (MonitoringController.selectedStrategy(this@MainActivity) == MonitoringStrategy.SERVER) {
+                            MonitoringController.syncServerWatchlist(this@MainActivity)
+                        }
                     }
                 }
             }
@@ -302,6 +312,10 @@ class MainActivity : AppCompatActivity() {
                         else -> StrategyIndicator("ПК: агент", R.color.strategy_home_agent)
                     }
                 }
+                selected == MonitoringStrategy.SERVER && ServerWatchdog.isFallbackActive(this@MainActivity) ->
+                    StrategyIndicator("Сервер: fallback", R.color.strategy_fallback)
+                selected == MonitoringStrategy.SERVER ->
+                    StrategyIndicator("Сервер", R.color.strategy_home_agent)
                 selected == MonitoringStrategy.RELIABLE -> StrategyIndicator("Телефон: надёжно", R.color.strategy_reliable)
                 else -> StrategyIndicator("Телефон: экономия", R.color.strategy_economy)
             }

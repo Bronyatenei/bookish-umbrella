@@ -23,9 +23,11 @@ class HomeAgentMessagingService : FirebaseMessagingService() {
     }
 
     private suspend fun handle(data: Map<String, String>) {
-        if (MonitoringController.selectedStrategy(this) != MonitoringStrategy.HOME_AGENT) return
+        val strategy = MonitoringController.selectedStrategy(this)
+        if (strategy != MonitoringStrategy.HOME_AGENT && strategy != MonitoringStrategy.SERVER) return
         when (data[KEY_TYPE]) {
             EVENT_HEARTBEAT -> {
+                if (strategy != MonitoringStrategy.HOME_AGENT) return
                 val heartbeat = HomeAgentWatchdog.Heartbeat(
                     version = data[KEY_HEARTBEAT_VERSION]?.toIntOrNull(),
                     id = data[KEY_HEARTBEAT_ID],
@@ -41,6 +43,14 @@ class HomeAgentMessagingService : FirebaseMessagingService() {
                 return
             }
             EVENT_STREAM_ONLINE -> handleStreamOnline(data)
+            EVENT_STREAM_START -> handleStreamOnline(
+                data + mapOf(
+                    KEY_LOGIN to (data[KEY_STREAMER] ?: ""),
+                    KEY_DISPLAY_NAME to (data[KEY_STREAMER_NAME] ?: data[KEY_STREAMER].orEmpty()),
+                    KEY_EVENT_ID to (data[KEY_STREAM_ID] ?: data[KEY_EVENT_ID].orEmpty()),
+                    KEY_RELAYED to "true"
+                )
+            )
             else -> return
         }
     }
@@ -142,6 +152,10 @@ class HomeAgentMessagingService : FirebaseMessagingService() {
         private const val KEY_EVENT_ID = "event_id"
         private const val KEY_SENT_AT = "sent_at"
         private const val EVENT_STREAM_ONLINE = "stream_online"
+        private const val EVENT_STREAM_START = "stream_start"
+        private const val KEY_STREAMER = "streamer"
+        private const val KEY_STREAMER_NAME = "streamer_name"
+        private const val KEY_STREAM_ID = "stream_id"
         private const val EVENT_HEARTBEAT = "home_agent_heartbeat"
         private val EVENT_LOCK = Any()
     }

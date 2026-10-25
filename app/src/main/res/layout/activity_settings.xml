@@ -214,6 +214,77 @@
                             android:textSize="12sp"
                             android:textColor="@color/text_hint"/>
 
+                        <RadioButton
+                            android:id="@+id/rbServer"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="Сервер — Twitch EventSub"
+                            android:textColor="@color/text_primary"/>
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="32dp"
+                            android:text="Relay принимает Twitch EventSub и отправляет stream_start на телефон через FCM. Локальных Twitch-проверок нет."
+                            android:textSize="12sp"
+                            android:textColor="@color/text_hint"/>
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="32dp"
+                            android:layout_marginTop="8dp"
+                            android:hint="Имя пользователя для сервера">
+
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etServerDisplayName"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="textPersonName"
+                                android:maxLength="40"
+                                android:textColor="@color/text_primary"/>
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="32dp"
+                            android:text="Это отображаемое имя для синхронизации, а не идентификатор безопасности."
+                            android:textSize="12sp"
+                            android:textColor="@color/text_hint"/>
+                        <Button
+                            android:id="@+id/btnClearServerWatchlist"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="32dp"
+                            android:layout_marginTop="8dp"
+                            android:text="Очистить список на сервере" />
+                        <Button
+                            android:id="@+id/btnDeleteServerProfile"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="32dp"
+                            android:text="Удалить серверный профиль" />
+
+                        <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/switchServerFallbackEnabled"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="32dp"
+                            android:layout_marginTop="8dp"
+                            android:text="Включать локальную подстраховку сервера"
+                            android:textColor="@color/text_primary"
+                            android:checked="false"/>
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="32dp"
+                            android:text="Раз в 24 часа проверяется /healthz; при сбое включается существующая экономичная проверка."
+                            android:textSize="12sp"
+                            android:textColor="@color/text_hint"/>
+
                         <LinearLayout
                             android:id="@+id/homeAgentSettingsContainer"
                             android:layout_width="match_parent"

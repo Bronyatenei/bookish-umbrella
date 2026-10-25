@@ -16,6 +16,7 @@ import android.widget.SeekBar
 import android.widget.Toast
 import androidx.core.widget.doAfterTextChanged
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
 import com.google.firebase.messaging.FirebaseMessaging
@@ -23,12 +24,16 @@ import com.twitchalarm.R
 import com.twitchalarm.databinding.ActivitySettingsBinding
 import com.twitchalarm.work.AlarmSoundPreferences
 import com.twitchalarm.work.MonitoringController
+import com.twitchalarm.work.RelayApi
 import com.twitchalarm.work.FcmTokenStore
 import com.twitchalarm.work.MonitoringStrategy
 import com.twitchalarm.work.HomeAgentWatchdog
+import com.twitchalarm.work.ServerWatchdog
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 
 class SettingsActivity : AppCompatActivity() {
 
@@ -67,6 +72,8 @@ class SettingsActivity : AppCompatActivity() {
         const val KEY_HOME_AGENT_AUTO_RETURN = "home_agent_auto_return"
         const val KEY_HOME_AGENT_FALLBACK_ENABLED = "home_agent_fallback_enabled"
         const val KEY_HOME_AGENT_PARALLEL_BACKUP = "home_agent_parallel_backup"
+        const val KEY_SERVER_FALLBACK_ENABLED = "server_fallback_enabled"
+        const val KEY_SERVER_DISPLAY_NAME = "server_display_name"
         const val DEFAULT_INTERVAL = 5
         const val DEFAULT_VOLUME = 100
         const val DEFAULT_FADE_SECONDS = 30
@@ -134,6 +141,7 @@ class SettingsActivity : AppCompatActivity() {
                 MonitoringStrategy.RELIABLE -> R.id.rbReliable
                 MonitoringStrategy.ECONOMY -> R.id.rbEconomy
                 MonitoringStrategy.HOME_AGENT -> R.id.rbHomeAgent
+                MonitoringStrategy.SERVER -> R.id.rbServer
             }
         )
         binding.switchStreamNotificationOnly.isChecked =
@@ -149,6 +157,8 @@ class SettingsActivity : AppCompatActivity() {
         binding.switchHomeAgentAutoReturn.isChecked = HomeAgentWatchdog.autoReturnEnabled(this)
         binding.switchHomeAgentFallbackEnabled.isChecked = HomeAgentWatchdog.fallbackEnabled(this)
         binding.switchHomeAgentParallelBackup.isChecked = HomeAgentWatchdog.parallelBackupEnabled(this)
+        binding.switchServerFallbackEnabled.isChecked = ServerWatchdog.fallbackEnabled(this)
+        binding.etServerDisplayName.setText(prefs.getString(KEY_SERVER_DISPLAY_NAME, ""))
         updateHomeAgentControls(strategy)
         updatePlaylistSummary()
     }
@@ -184,6 +194,7 @@ class SettingsActivity : AppCompatActivity() {
             val strategy = when (checkedId) {
                 R.id.rbEconomy -> MonitoringStrategy.ECONOMY
                 R.id.rbHomeAgent -> MonitoringStrategy.HOME_AGENT
+                R.id.rbServer -> MonitoringStrategy.SERVER
                 else -> MonitoringStrategy.RELIABLE
             }
             PreferenceManager.getDefaultSharedPreferences(this)
@@ -192,6 +203,21 @@ class SettingsActivity : AppCompatActivity() {
                 .apply()
             updateHomeAgentControls(strategy)
             MonitoringController.reconfigure(this)
+        }
+
+        binding.switchServerFallbackEnabled.setOnCheckedChangeListener { _, checked ->
+            PreferenceManager.getDefaultSharedPreferences(this)
+                .edit().putBoolean(KEY_SERVER_FALLBACK_ENABLED, checked).apply()
+            if (selectedStrategy() == MonitoringStrategy.SERVER) {
+                ServerWatchdog.setFallbackEnabled(this, checked)
+            }
+            updateHomeAgentControls()
+        }
+
+        binding.etServerDisplayName.doAfterTextChanged { text ->
+            PreferenceManager.getDefaultSharedPreferences(this)
+                .edit().putString(KEY_SERVER_DISPLAY_NAME, text?.toString()?.trim().orEmpty()).apply()
+            if (selectedStrategy() == MonitoringStrategy.SERVER) MonitoringController.syncServerWatchlist(this)
         }
 
         binding.seekBarHomeAgentWatchdog.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -304,6 +330,34 @@ class SettingsActivity : AppCompatActivity() {
         binding.btnChooseTracks.setOnClickListener { playlistPicker.launch(arrayOf("audio/*")) }
         binding.btnClearTracks.setOnClickListener { clearPlaylist() }
         binding.btnCopyFcmToken.setOnClickListener { copyFcmToken() }
+        binding.btnClearServerWatchlist.setOnClickListener {
+            lifecycleScope.launch {
+                val ok = RelayApi.clearWatchlist(this@SettingsActivity)
+                Toast.makeText(this@SettingsActivity, if (ok) "Список на сервере очищен" else "Не удалось очистить список на сервере", Toast.LENGTH_SHORT).show()
+            }
+        }
+        binding.btnDeleteServerProfile.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle("Удалить серверный профиль?")
+                .setMessage("Будут удалены серверные каналы, устройство и профиль Firebase. Обычные будильники не изменятся.")
+                .setPositiveButton("Удалить") { _, _ ->
+                    lifecycleScope.launch {
+                        val ok = RelayApi.deleteServerProfile(this@SettingsActivity)
+                        if (ok) {
+                            PreferenceManager.getDefaultSharedPreferences(this@SettingsActivity).edit()
+                                .remove(KEY_SERVER_DISPLAY_NAME)
+                                .putString(KEY_MONITORING_STRATEGY, MonitoringStrategy.RELIABLE.storedValue)
+                                .apply()
+                            binding.etServerDisplayName.setText("")
+                            binding.rgMonitoringStrategy.check(R.id.rbReliable)
+                            MonitoringController.reconfigure(this@SettingsActivity)
+                        }
+                        Toast.makeText(this@SettingsActivity, if (ok) "Серверный профиль удалён" else "Не удалось удалить серверный профиль", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                .setNegativeButton("Отмена", null)
+                .show()
+        }
     }
 
     private fun refreshFcmToken() {
@@ -351,6 +405,7 @@ class SettingsActivity : AppCompatActivity() {
             "Используется в режимах Стабильность и Экономия"
         }
         binding.homeAgentSettingsContainer.visibility = if (homeAgentSelected) View.VISIBLE else View.GONE
+        binding.switchServerFallbackEnabled.isEnabled = strategy == MonitoringStrategy.SERVER
         binding.etMissedHeartbeats.isEnabled = fallbackEnabled
         binding.spinnerHomeAgentFallback.isEnabled = fallbackEnabled
         binding.switchHomeAgentAutoReturn.isEnabled = fallbackEnabled
