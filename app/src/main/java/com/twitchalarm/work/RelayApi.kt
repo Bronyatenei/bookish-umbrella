@@ -62,41 +62,64 @@ object RelayApi {
             }.onFailure { Log.e(TAG, "Server profile deletion failed", it) }.getOrDefault(false)
         }
     }
-    suspend fun syncWatchlist(context: Context) {
+    data class SyncResult(
+        val success: Boolean,
+        val displayName: String = "",
+        val syncedChannels: List<String> = emptyList(),
+        val missingChannels: List<String> = emptyList(),
+        val error: String? = null
+    )
+
+    suspend fun syncWatchlist(context: Context): SyncResult {
         val appContext = context.applicationContext
-        runCatching {
-            val channels = AppDatabase.getInstance(appContext).streamerDao().getEnabled()
-                .map { it.login }
-            val displayName = PreferenceManager.getDefaultSharedPreferences(appContext)
-                .getString(SettingsActivity.KEY_SERVER_DISPLAY_NAME, "")?.trim().orEmpty()
-            if (displayName.isEmpty() || displayName.length > 40) {
-                Log.e(TAG, "Watchlist sync skipped: invalid server display name")
-                return@runCatching
-            }
-            val token = firebaseBearerToken()
-            if (token.isNullOrBlank()) {
-                Log.e(TAG, "Watchlist sync skipped: Firebase ID token unavailable")
-                return@runCatching
-            }
-            val payload = JSONObject().apply {
-                put("ownerId", displayName)
-                put("displayName", displayName)
-                put("fcmToken", FcmTokenStore.get(appContext) ?: JSONObject.NULL)
-                put("channels", JSONArray(channels))
-            }
-            val request = Request.Builder()
-                .url(WATCHLIST_URL)
-                .header("Authorization", "Bearer $token")
-                .post(payload.toString().toRequestBody(jsonType))
-                .build()
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    Log.e(TAG, "Watchlist sync failed: HTTP ${response.code}")
-                } else {
-                    Log.d(TAG, "Watchlist synced: ${channels.size} channels")
+        return withContext(Dispatchers.IO) {
+            try {
+                val channels = AppDatabase.getInstance(appContext).streamerDao().getEnabled().map { it.login }
+                val displayName = PreferenceManager.getDefaultSharedPreferences(appContext)
+                    .getString(SettingsActivity.KEY_SERVER_DISPLAY_NAME, "")?.trim().orEmpty()
+                if (displayName.isEmpty() || displayName.length > 40) {
+                    return@withContext SyncResult(false, error = "Укажите имя пользователя для сервера")
                 }
+                val token = firebaseBearerToken()
+                    ?: return@withContext SyncResult(false, displayName, error = "Firebase не выдал токен авторизации")
+                val fcmToken = FcmTokenStore.get(appContext)
+                    ?: return@withContext SyncResult(false, displayName, error = "FCM-токен ещё не получен")
+                val payload = JSONObject().apply {
+                    put("displayName", displayName)
+                    put("fcmToken", fcmToken)
+                    put("channels", JSONArray(channels))
+                }
+                val request = Request.Builder().url(WATCHLIST_URL)
+                    .header("Authorization", "Bearer $token")
+                    .post(payload.toString().toRequestBody(jsonType)).build()
+                client.newCall(request).execute().use { response ->
+                    val body = response.body?.string().orEmpty()
+                    if (!response.isSuccessful) {
+                        val serverError = runCatching { JSONObject(body).optString("error") }.getOrNull()
+                        val message = when (serverError) {
+                            "twitch_unavailable" -> "Twitch временно недоступен"
+                            "unauthorized" -> "ошибка авторизации"
+                            else -> "HTTP ${response.code}${serverError?.takeIf { it.isNotBlank() }?.let { ": $it" }.orEmpty()}"
+                        }
+                        Log.e(TAG, "Watchlist sync failed: $message")
+                        return@withContext SyncResult(false, displayName, error = message)
+                    }
+                    val json = JSONObject(body)
+                    val synced = json.optJSONArray("channels").toStringList()
+                    val missing = json.optJSONArray("missingChannels").toStringList()
+                    Log.d(TAG, "Watchlist synced: ${synced.size} channels")
+                    SyncResult(true, displayName, synced, missing)
+                }
+            } catch (error: Exception) {
+                Log.e(TAG, "Watchlist sync error", error)
+                SyncResult(false, error = error.message ?: "сетевой сбой")
             }
-        }.onFailure { error -> Log.e(TAG, "Watchlist sync error", error) }
+        }
+    }
+
+    private fun org.json.JSONArray?.toStringList(): List<String> {
+        if (this == null) return emptyList()
+        return buildList { for (index in 0 until length()) add(optString(index)) }
     }
 
     suspend fun health(context: Context): Boolean = withContext(Dispatchers.IO) {

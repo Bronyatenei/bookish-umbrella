@@ -330,6 +330,24 @@ class SettingsActivity : AppCompatActivity() {
         binding.btnChooseTracks.setOnClickListener { playlistPicker.launch(arrayOf("audio/*")) }
         binding.btnClearTracks.setOnClickListener { clearPlaylist() }
         binding.btnCopyFcmToken.setOnClickListener { copyFcmToken() }
+        binding.btnSyncServerWatchlist.setOnClickListener {
+            val originalText = binding.btnSyncServerWatchlist.text
+            binding.btnSyncServerWatchlist.isEnabled = false
+            binding.btnSyncServerWatchlist.text = "Загрузка…"
+            lifecycleScope.launch {
+                val result = RelayApi.syncWatchlist(this@SettingsActivity)
+                binding.btnSyncServerWatchlist.isEnabled = true
+                binding.btnSyncServerWatchlist.text = originalText
+                binding.tvServerSyncStatus.text = if (result.success) {
+                    val missing = if (result.missingChannels.isEmpty()) "" else
+                        " Не найдены: ${result.missingChannels.joinToString()}."
+                    "Список для ${result.displayName} загружен: ${result.syncedChannels.size} каналов.$missing"
+                } else {
+                    "Ошибка при создании/обновлении списка${result.displayName.takeIf { it.isNotBlank() }?.let { " для $it" }.orEmpty()}: ${result.error ?: "неизвестная ошибка"}"
+                }
+                Toast.makeText(this@SettingsActivity, binding.tvServerSyncStatus.text, Toast.LENGTH_LONG).show()
+            }
+        }
         binding.btnClearServerWatchlist.setOnClickListener {
             lifecycleScope.launch {
                 val ok = RelayApi.clearWatchlist(this@SettingsActivity)

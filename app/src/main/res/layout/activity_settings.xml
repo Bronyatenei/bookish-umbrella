@@ -254,6 +254,22 @@
                             android:textSize="12sp"
                             android:textColor="@color/text_hint"/>
                         <Button
+                            android:id="@+id/btnSyncServerWatchlist"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="32dp"
+                            android:layout_marginTop="8dp"
+                            android:text="Загрузить мой список на сервер" />
+                        <TextView
+                            android:id="@+id/tvServerSyncStatus"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="32dp"
+                            android:layout_marginTop="4dp"
+                            android:text="Список ещё не загружался"
+                            android:textSize="12sp"
+                            android:textColor="@color/text_hint" />
+                        <Button
                             android:id="@+id/btnClearServerWatchlist"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
