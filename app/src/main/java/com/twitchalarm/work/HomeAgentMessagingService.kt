@@ -43,6 +43,7 @@ class HomeAgentMessagingService : FirebaseMessagingService() {
                 return
             }
             EVENT_STREAM_ONLINE -> handleStreamOnline(data)
+            EVENT_STREAM_OFFLINE -> handleStreamOffline(data)
             EVENT_STREAM_START -> handleStreamOnline(
                 data + mapOf(
                     KEY_LOGIN to (data[KEY_STREAMER] ?: ""),
@@ -74,6 +75,22 @@ class HomeAgentMessagingService : FirebaseMessagingService() {
                 KEY_RELAYED to "true"
             )
         )
+    }
+
+    private suspend fun handleStreamOffline(data: Map<String, String>) {
+        val login = data[KEY_LOGIN]?.trim()?.lowercase().orEmpty()
+        if (login.isEmpty()) return
+        val database = AppDatabase.getInstance(this)
+        val streamer = database.streamerDao().getByLogin(login) ?: return
+        database.streamerDao().updateLiveStatus(
+            login = login,
+            isLive = false,
+            title = "",
+            viewers = 0,
+            game = "",
+            displayName = streamer.displayName.ifBlank { data[KEY_DISPLAY_NAME].orEmpty() }
+        )
+        Log.i(TAG, "Marked $login offline from relay event")
     }
 
     private suspend fun handleStreamOnline(data: Map<String, String>) {
@@ -152,6 +169,7 @@ class HomeAgentMessagingService : FirebaseMessagingService() {
         private const val KEY_EVENT_ID = "event_id"
         private const val KEY_SENT_AT = "sent_at"
         private const val EVENT_STREAM_ONLINE = "stream_online"
+        private const val EVENT_STREAM_OFFLINE = "stream_offline"
         private const val EVENT_STREAM_START = "stream_start"
         private const val KEY_STREAMER = "streamer"
         private const val KEY_STREAMER_NAME = "streamer_name"
